@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Maru Desktop</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --desktop-topbar-height: 40px;
+        --desktop-border: rgba(255, 255, 255, 0.08);
+        --desktop-surface: #0f141c;
+        --desktop-surface-soft: rgba(20, 28, 40, 0.92);
+        --desktop-text: #f2f6ff;
+        --desktop-muted: rgba(242, 246, 255, 0.72);
+        --desktop-hover: rgba(255, 255, 255, 0.12);
+        --desktop-danger-hover: #ef6c78;
+        --desktop-card-surface: rgba(6, 13, 26, 0.82);
+        --desktop-card-border: rgba(255, 255, 255, 0.08);
+        --desktop-accent: rgba(120, 176, 255, 0.55);
+        --desktop-accent-strong: rgba(146, 228, 210, 0.96);
+        --desktop-panel-bg: rgba(10, 18, 34, 0.72);
+        --desktop-panel-strong: rgba(14, 27, 47, 0.88);
+        --desktop-font: "Manrope", "Segoe UI", "Helvetica Neue", sans-serif;
+        --desktop-title-font: "Trebuchet MS", "Gill Sans", "Gill Sans MT", "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--desktop-surface);
+        color: var(--desktop-text);
+        font-family: var(--desktop-font);
+      }
+
+      body {
+        border: 1px solid var(--desktop-border);
+      }
+
+      body[data-visual-style="amoled"] {
+        --desktop-surface: #000000;
+        --desktop-surface-soft: rgba(0, 0, 0, 0.96);
+        --desktop-border: rgba(255, 255, 255, 0.1);
+        --desktop-text: rgba(244, 247, 255, 0.98);
+        --desktop-muted: rgba(184, 194, 212, 0.78);
+        --desktop-hover: rgba(255, 255, 255, 0.08);
+        --desktop-card-surface: rgba(5, 5, 5, 0.95);
+      }
+
+      body[data-visual-style="quiet_tide"] {
+        --desktop-surface: #09111e;
+        --desktop-surface-soft: rgba(9, 15, 28, 0.9);
+        --desktop-border: rgba(187, 215, 255, 0.14);
+        --desktop-text: rgba(240, 246, 255, 0.97);
+        --desktop-muted: rgba(195, 210, 228, 0.8);
+        --desktop-hover: rgba(235, 245, 255, 0.08);
+        --desktop-card-surface: rgba(8, 17, 30, 0.86);
+        --desktop-panel-bg: rgba(10, 18, 34, 0.76);
+        --desktop-panel-strong: rgba(14, 27, 47, 0.88);
+        --desktop-font: "Manrope", "Segoe UI", "Helvetica Neue", sans-serif;
+      }
+
+      body[data-visual-style="dark_corporate"] {
+        --desktop-surface: #111315;
+        --desktop-surface-soft: rgba(24, 25, 26, 0.96);
+        --desktop-border: rgba(58, 59, 60, 1);
+        --desktop-text: rgba(228, 230, 235, 0.96);
+        --desktop-muted: rgba(176, 179, 184, 0.9);
+        --desktop-hover: rgba(255, 255, 255, 0.08);
+        --desktop-card-surface: rgba(24, 25, 26, 0.92);
+        --desktop-panel-bg: rgba(32, 35, 39, 0.92);
+        --desktop-panel-strong: rgba(36, 37, 38, 0.96);
+        --desktop-font: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", sans-serif;
+      }
+
+      body[data-visual-style="urple"] {
+        --desktop-surface: #1d0a31;
+        --desktop-surface-soft: rgba(69, 24, 120, 0.56);
+        --desktop-border: rgba(255, 202, 255, 0.22);
+        --desktop-text: rgba(255, 245, 255, 0.97);
+        --desktop-muted: rgba(245, 222, 255, 0.82);
+        --desktop-hover: rgba(255, 214, 251, 0.1);
+        --desktop-card-surface: rgba(30, 10, 50, 0.82);
+        --desktop-panel-bg: rgba(61, 24, 104, 0.58);
+        --desktop-panel-strong: rgba(87, 36, 134, 0.7);
+        --desktop-font: "Nunito", "Segoe UI", "Helvetica Neue", sans-serif;
+      }
+
+      body.card-hover-nudge-disabled .desktop-applet-card:hover {
+        transform: none;
+      }
+
+      .desktop-shell {
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-rows: var(--desktop-topbar-height) minmax(0, 1fr);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 48%),
+          var(--desktop-surface);
+      }
+
+      .desktop-titlebar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: stretch;
+        background:
+          linear-gradient(135deg, rgba(120, 140, 255, 0.12), rgba(146, 228, 210, 0.08)),
+          var(--desktop-panel-bg);
+        border-bottom: 1px solid var(--desktop-border);
+        user-select: none;
+        backdrop-filter: blur(20px) saturate(140%);
+        -webkit-backdrop-filter: blur(20px) saturate(140%);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
+
+      .desktop-titlecopy {
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 10px;
+      }
+
+      .desktop-titlecopy-text {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+
+      .desktop-brand-badge {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        flex-shrink: 0;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05)),
+          var(--desktop-panel-strong);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        box-shadow:
+          0 10px 24px rgba(0, 0, 0, 0.22),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+
+      .desktop-brand-badge img {
+        width: 16px;
+        height: 16px;
+        object-fit: contain;
+      }
+
+      .desktop-subhead {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .desktop-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        border: 1px solid rgba(146, 228, 210, 0.24);
+        background: rgba(146, 228, 210, 0.1);
+        color: var(--desktop-accent-strong);
+        font-size: 0.68rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .desktop-status-pill::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: currentColor;
+        box-shadow: 0 0 12px currentColor;
+      }
+
+      .desktop-nav {
+        width: 38px;
+        height: 38px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        display: inline-grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--desktop-text);
+        cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+      }
+
+      .desktop-nav:hover {
+        background: var(--desktop-hover);
+        border-color: rgba(255, 255, 255, 0.18);
+        transform: translateY(-1px);
+      }
+
+      .desktop-nav[hidden] {
+        display: none;
+      }
+
+      .desktop-titlecopy strong {
+        font-family: var(--desktop-title-font);
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      .desktop-titlecopy span {
+        font-size: 0.77rem;
+        color: var(--desktop-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .desktop-controls {
+        display: flex;
+        align-items: stretch;
+        gap: 4px;
+        padding: 0 8px 0 0;
+      }
+
+      .desktop-control {
+        width: 28px;
+        height: 28px;
+        align-self: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 14px;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--desktop-text);
+        cursor: pointer;
+        transition:
+          background 120ms ease,
+          color 120ms ease,
+          transform 120ms ease,
+          border-color 120ms ease;
+      }
+
+      .desktop-control:hover {
+        background: var(--desktop-hover);
+        border-color: rgba(255, 255, 255, 0.18);
+        transform: translateY(-1px);
+      }
+
+      .desktop-control.close:hover {
+        background: var(--desktop-danger-hover);
+      }
+
+      .desktop-control svg {
+        width: 12px;
+        height: 12px;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        fill: none;
+        vector-effect: non-scaling-stroke;
+      }
+
+      .desktop-body {
+        min-height: 0;
+        position: relative;
+      }
+
+      .desktop-frame {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #0f141c;
+      }
+
+      @media (max-width: 900px) {
+        .desktop-status-pill {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="desktop-shell">
+      <header class="desktop-titlebar">
+        <div class="desktop-titlecopy" data-tauri-drag-region>
+          <div class="desktop-brand-badge" aria-hidden="true">
+            <img src="/icon-192.png" alt="" />
+          </div>
+          <div class="desktop-titlecopy-text">
+            <strong>Maru Desktop</strong>
+          </div>
+        </div>
+        <div class="desktop-controls">
+          <button class="desktop-control" id="desktop-minimize" aria-label="Minimize">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 6h8" />
+            </svg>
+          </button>
+          <button class="desktop-control" id="desktop-maximize" aria-label="Maximize">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <rect x="2.5" y="2.5" width="7" height="7" />
+            </svg>
+          </button>
+          <button class="desktop-control close" id="desktop-close" aria-label="Close">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2.5 2.5l7 7M9.5 2.5l-7 7" />
+            </svg>
+          </button>
+        </div>
+      </header>
+      <div class="desktop-body">
+        <iframe
+          class="desktop-frame"
+          id="desktop-frame"
+          src="desktop-shell.html"
+          title="Maru Desktop"
+          allow="clipboard-read; clipboard-write"
+        ></iframe>
+      </div>
+    </div>
+    <script>
+      // Global Error Overlay for Debugging
+      (function setupGlobalErrorOverlay() {
+        const createErrorUI = (msg, src, line, col, err) => {
+          const div = document.createElement("div");
+          div.id = "global-debug-error";
+          div.style.position = "fixed";
+          div.style.bottom = "10px";
+          div.style.left = "10px";
+          div.style.right = "10px";
+          div.style.background = "#8b0000";
+          div.style.color = "#ffffff";
+          div.style.padding = "10px 15px";
+          div.style.borderRadius = "6px";
+          div.style.fontFamily = "Consolas, monospace";
+          div.style.fontSize = "12px";
+          div.style.zIndex = "999999";
+          div.style.border = "1px solid #ff4500";
+          div.style.boxShadow = "0 4px 15px rgba(0,0,0,0.5)";
+          div.style.maxHeight = "200px";
+          div.style.overflowY = "auto";
+          div.innerHTML = `<strong>⚠️ Nami Agent Runtime Error:</strong><br>${msg}<br><span style="opacity:0.7">at ${src || "unknown"}:${line || 0}:${col || 0}</span>`;
+          if (err && err.stack) {
+            div.innerHTML += `<pre style="margin:5px 0 0 0; font-size:10px; opacity:0.8; white-space:pre-wrap;">${err.stack}</pre>`;
+          }
+          document.body.appendChild(div);
+        };
+        window.onerror = function(msg, src, line, col, err) {
+          createErrorUI(msg, src, line, col, err);
+          return false;
+        };
+        window.addEventListener("unhandledrejection", function(event) {
+          createErrorUI(event.reason?.message || event.reason || "Unhandled Promise Rejection", "", 0, 0, event.reason);
+        });
+        // Catch iframe errors too
+        window.addEventListener("load", () => {
+          const iframe = document.getElementById("desktop-frame");
+          if (iframe) {
+            iframe.addEventListener("error", (e) => {
+              createErrorUI("Iframe load failed", iframe.src, 0, 0);
+            });
+            try {
+              iframe.contentWindow.onerror = function(msg, src, line, col, err) {
+                createErrorUI("[Iframe] " + msg, src, line, col, err);
+                return false;
+              };
+            } catch(e) {}
+          }
+        });
+      })();
+
+      const RENDER_BACKEND_ORIGIN = "https://maru-website.onrender.com";
+
+      const tauriInvoke = window.__TAURI__?.core?.invoke?.bind(window.__TAURI__.core);
+      const secureAuthCache = {
+        sharedAuthUser: null,
+        elevationToken: null,
+      };
+      const desktopEnvironmentPromise =
+        typeof tauriInvoke === "function"
+          ? tauriInvoke("get_environment").catch(() => ({
+              isDesktopApp: true,
+              isWindows: false,
+              platform: "unknown",
+              version: "0.0.0",
+            }))
+          : Promise.resolve({
+              isDesktopApp: true,
+              isWindows: false,
+              platform: "unknown",
+              version: "0.0.0",
+            });
+
+      async function hydrateSecureAuthCache() {
+        if (typeof tauriInvoke !== "function") {
+          return;
+        }
+
+        try {
+          const store = await tauriInvoke("get_secure_auth");
+          secureAuthCache.sharedAuthUser =
+            typeof store?.sharedAuthUser === "string" ? store.sharedAuthUser : null;
+          secureAuthCache.elevationToken =
+            typeof store?.elevationToken === "string" ? store.elevationToken : null;
+        } catch (error) {
+          console.warn("[maru-desktop-tauri] secure auth hydrate failed", error);
+        }
+      }
+
+      const secureAuthHydrationPromise = hydrateSecureAuthCache();
+
+      function setSharedAuthUser(rawAuthUser) {
+        secureAuthCache.sharedAuthUser =
+          typeof rawAuthUser === "string" && rawAuthUser.trim() ? rawAuthUser : null;
+
+        if (typeof tauriInvoke === "function") {
+          void tauriInvoke("set_shared_auth_user", {
+            payload: {
+              rawAuthUser: secureAuthCache.sharedAuthUser,
+            },
+          }).catch((error) => {
+            console.warn("[maru-desktop-tauri] set_shared_auth_user failed", error);
+          });
+        }
+      }
+
+      function setElevationToken(token) {
+        secureAuthCache.elevationToken =
+          typeof token === "string" && token.trim() ? token.trim() : null;
+
+        if (typeof tauriInvoke === "function") {
+          void tauriInvoke("set_elevation_token", {
+            payload: {
+              token: secureAuthCache.elevationToken,
+            },
+          }).catch((error) => {
+            console.warn("[maru-desktop-tauri] set_elevation_token failed", error);
+          });
+        }
+      }
+
+      window.maruDesktop = {
+        getEnvironment: () => desktopEnvironmentPromise,
+        updater: {
+          check: () => Promise.resolve({ ok: false }),
+          download: () => Promise.resolve({ ok: false }),
+          isSupported: () => Promise.resolve(false),
+          onStatus: () => {},
+        },
+        files: {
+          prepareDragDownload: (payload) =>
+            typeof tauriInvoke === "function"
+              ? tauriInvoke("prepare_drag_download", { payload })
+              : Promise.resolve({
+                  ok: false,
+                  error: "The Tauri desktop bridge is unavailable.",
+                }),
+          openInExplorer: (targetPath) =>
+            typeof tauriInvoke === "function"
+              ? tauriInvoke("open_files_in_explorer", {
+                  payload: { targetPath },
+                })
+              : Promise.resolve({
+                  ok: false,
+                  message: "The Tauri desktop bridge is unavailable.",
+                }),
+          openStructureMirror: (payload) =>
+            typeof tauriInvoke === "function"
+              ? tauriInvoke("open_files_structure_mirror", { payload })
+              : Promise.resolve({
+                  ok: false,
+                  message: "The Tauri desktop bridge is unavailable.",
+                }),
+        },
+      };
+
+      window.AppletNativeBridge = {
+        getSharedAuthUser: () => secureAuthCache.sharedAuthUser,
+        getServerOrigin: () => RENDER_BACKEND_ORIGIN,
+        setSharedAuthUser,
+        clearSharedAuthUser: () => setSharedAuthUser(null),
+        getElevationToken: () => secureAuthCache.elevationToken,
+        setElevationToken,
+        clearElevationToken: () => setElevationToken(null),
+      };
+
+      function applyStoredDesktopAppearance() {
+        try {
+          const raw = window.localStorage.getItem("app-options");
+          const parsed = raw ? JSON.parse(raw) : null;
+          const visualStyle = parsed?.visualStyle;
+          if (visualStyle && visualStyle !== "it_started_here") {
+            document.body.dataset.visualStyle = visualStyle;
+          } else {
+            delete document.body.dataset.visualStyle;
+          }
+        } catch {
+          delete document.body.dataset.visualStyle;
+        }
+      }
+
+      async function bindWindowControls() {
+        const tauriWindowNamespace = window.__TAURI__?.window;
+        const getCurrentWindow = tauriWindowNamespace?.getCurrentWindow;
+
+        if (typeof getCurrentWindow !== "function") {
+          console.warn("[maru-desktop-tauri] window API unavailable");
+          return;
+        }
+
+        const appWindow = getCurrentWindow();
+
+        const safeWindowAction = (label, handler) => async () => {
+          try {
+            await handler();
+          } catch (error) {
+            console.error(`[maru-desktop-tauri] ${label} failed`, error);
+          }
+        };
+
+        document
+          .getElementById("desktop-minimize")
+          ?.addEventListener("click", safeWindowAction("minimize", () => appWindow.minimize()));
+
+        document
+          .getElementById("desktop-maximize")
+          ?.addEventListener(
+            "click",
+            safeWindowAction("toggleMaximize", () => appWindow.toggleMaximize()),
+          );
+
+        document
+          .getElementById("desktop-close")
+          ?.addEventListener("click", safeWindowAction("close", () => appWindow.close()));
+      }
+
+      window.addEventListener("storage", (event) => {
+        if (event.key === "app-options" || event.key === "site-lang") {
+          applyStoredDesktopAppearance();
+        }
+      });
+
+      applyStoredDesktopAppearance();
+      bindWindowControls();
+    </script>
+  </body>
+</html>
