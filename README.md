@@ -2,7 +2,40 @@
 
 > *"Ehh? What are you looking around here for, Senpai? ...Fine, since you're already here, let me give you the grand tour of our desktop apps! Don't just stare, read properly!"* — **Nanami 💚**
 
-Welcome to the **Maru Desktop Monorepo**! This repository houses all the native desktop applications built with **Tauri 2 (Rust + React + TypeScript)** for the Maru ecosystem. Everything here compiles into lightweight, blazingly fast native executables that run offline without needing a cluttered browser tab.
+Welcome to the **Maru Desktop Monorepo**! This repository houses all native desktop applications built with **Tauri 2 (Rust + React + TypeScript)** for the Maru ecosystem. Everything here compiles into lightweight, blazingly fast native executables that run offline without needing a cluttered browser tab.
+
+---
+
+## ⚠️ Important Platform & Binary Notice
+
+> [!WARNING]
+> **Pre-compiled GitHub releases provided here are Windows builds (`.exe` / `.msi`) only!**  
+> If you are on **macOS** or **Linux**, you will need to build the application on your own machine using the single-line build command below.
+
+> [!CAUTION]
+> **Tauri applications require your operating system's native WebView runtime!**  
+> They will **NOT** launch if the webview component has been uninstalled or stripped from your system:
+> - **Windows**: Requires **Microsoft Edge WebView2** (pre-installed on Windows 10/11; will fail if removed by debloater scripts).
+> - **macOS**: Requires built-in **WebKit (WKWebView)**.
+> - **Linux**: Requires **WebKit2GTK** (e.g., `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`).
+
+---
+
+## ⚡ 1-Line Automated Build Command
+
+Got **Node.js** and the **Rust toolchain** installed? Copy-paste this single command into your terminal—it automatically provisions `pnpm`, installs all workspace dependencies if not installed yet, and compiles the production binary in one shot!
+
+### 🤖 Build Nami Agent Desktop:
+```bash
+npx --yes pnpm install && npx --yes pnpm build:nami
+```
+
+### 📁 Build Files Companion:
+```bash
+npx --yes pnpm install && npx --yes pnpm build:files
+```
+
+*(Your built executables will be ready in `apps/<app-name>/src-tauri/target/release/`!)*
 
 ---
 
@@ -31,9 +64,9 @@ A lightweight desktop companion designed to interface with the Notion-backed Fil
 
 ---
 
-## 🛠️ Development & Building
+## 🛠️ Step-by-Step Development
 
-You'll need **Node.js 20+**, **Rust toolchain (`rustup`)**, and **pnpm** installed.
+If you prefer running in development mode with live hot-reloading:
 
 ```bash
 # Install dependencies across all apps & packages
@@ -44,10 +77,6 @@ pnpm dev:nami
 
 # Run Files Companion in development mode
 pnpm dev:files
-
-# Build production binaries
-pnpm build:nami
-pnpm build:files
 ```
 
 ---
