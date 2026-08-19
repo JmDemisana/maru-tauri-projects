@@ -46,6 +46,13 @@ If you don't have Node.js installed yet, grab it with one command:
 - Or download the official installer directly from **[nodejs.org](https://nodejs.org)**.
 
 #### ⚡ Step 2: 1-Line Build Command (Auto-installs Rust & Compiles)
+
+> 🐧 **Linux Prerequisite Note:**  
+> On fresh Debian, Ubuntu, or Pop!_OS installations, install the essential C/WebKit libraries first so the compiler doesn't complain about missing GTK/WebKit headers:
+> ```bash
+> sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+> ```
+
 Copy-paste this single line into your terminal. It **automatically checks and installs the Rust toolchain if missing**, sets up `pnpm`, installs dependencies, and compiles the native executable in one shot!
 
 ##### 🤖 Build Nami Agent Desktop:
@@ -68,13 +75,7 @@ Copy-paste this single line into your terminal. It **automatically checks and in
   if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:files
   ```
 
-*(Your built executables will be waiting for you in `apps/<app-name>/src-tauri/target/release/`!)*
-
-#### 🌐 System WebView Runtime Requirements:
-Tauri uses the operating system's native WebView engine:
-- **Windows**: Microsoft Edge WebView2
-- **macOS**: Built-in WebKit (WKWebView)
-- **Linux**: WebKit2GTK (`sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`)
+*(Because this repo uses a unified Cargo workspace, your compiled binaries and bundle installers will land in the workspace root `target/release/` and `target/release/bundle/`!)*
 
 ---
 
