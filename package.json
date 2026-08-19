@@ -1,0 +1,10 @@
+{
+  "name": "maru-tauri-projects",
+  "private": true,
+  "scripts": {
+    "dev:nami": "pnpm --filter nami-agent tauri dev",
+    "dev:files": "pnpm --filter files-companion tauri dev",
+    "build:nami": "pnpm --filter nami-agent tauri build",
+    "build:files": "pnpm --filter files-companion tauri build"
+  }
+}

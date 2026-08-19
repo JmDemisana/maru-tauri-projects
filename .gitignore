@@ -1,0 +1,22 @@
+# Rust
+target/
+
+# Node
+node_modules/
+dist/
+
+# Tauri
+apps/*/src-tauri/target/
+apps/nami-agent/desktop-web-dist/
+
+# Companions build output
+companions/*/dist/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
