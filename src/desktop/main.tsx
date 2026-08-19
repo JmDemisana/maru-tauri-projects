@@ -21,12 +21,13 @@ import KhenAcademy from "../pages/KhenAcademy";
 import AniList from "../pages/AniList";
 import DesktopOptions from "./DesktopOptions";
 import UpdateChecker from "./UpdateChecker";
+import NodeTracker from "./NodeTracker";
 import "../index.css";
 import "../App.css";
 import "./desktop.css";
 import { applyDesktopAppearance } from "./settings";
 
-type AppletId = "cup-cupper-cuppers" | "dael-or-no-dael" | "tup-grade-solver" | "photo-serve" | "options" | "apple-music-game" | "wordel" | "class-schedule-editor" | "tiertrack" | "lyrics-database" | "namiproof" | "onu" | "typer-shork" | "currenc" | "artwork-finder" | "nanami-lorebook" | "khenacademy" | "anilist" | null;
+type AppletId = "cup-cupper-cuppers" | "dael-or-no-dael" | "tup-grade-solver" | "photo-serve" | "options" | "apple-music-game" | "wordel" | "class-schedule-editor" | "tiertrack" | "lyrics-database" | "namiproof" | "onu" | "typer-shork" | "currenc" | "artwork-finder" | "nanami-lorebook" | "khenacademy" | "anilist" | "node-tracker" | null;
 
 const APPLET_ROUTE_MAP: Record<string, AppletId> = {
   CUP: "cup-cupper-cuppers",
@@ -47,6 +48,7 @@ const APPLET_ROUTE_MAP: Record<string, AppletId> = {
   LORE: "nanami-lorebook",
   KHEN: "khenacademy",
   ANILIST: "anilist",
+  NODE: "node-tracker",
   HOME: null as any,
 };
 
@@ -69,6 +71,7 @@ const APPLET_COMPONENTS: Record<string, React.FC> = {
   "nanami-lorebook": NanamiLorebook,
   "khenacademy": KhenAcademy,
   "anilist": AniList,
+  "node-tracker": NodeTracker,
 };
 
 const NEEDS_ROUTER = new Set(["apple-music-game", "wordel", "lyrics-database", "onu", "typer-shork", "nanami-lorebook", "khenacademy", "anilist"]);

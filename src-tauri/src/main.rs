@@ -42,7 +42,7 @@ struct DesktopRuntimeState {
     client: Client,
     drag_sessions: Arc<Mutex<HashMap<String, DragDownloadSession>>>,
     drag_server_origin: Arc<Mutex<Option<String>>>,
-    gemini_key_index: Arc<Mutex<usize>>,
+    gemini_key_nodes: Arc<Mutex<HashMap<String, KeyNodeState>>>,
     companion_tx: CompanionBroadcast,
 }
 
@@ -53,7 +53,7 @@ impl DesktopRuntimeState {
             client: Client::new(),
             drag_sessions: Arc::new(Mutex::new(HashMap::new())),
             drag_server_origin: Arc::new(Mutex::new(None)),
-            gemini_key_index: Arc::new(Mutex::new(0)),
+            gemini_key_nodes: Arc::new(Mutex::new(HashMap::new())),
             companion_tx,
         }
     }
@@ -75,6 +75,15 @@ impl DesktopRuntimeState {
     fn broadcast_companion(&self, msg: &str) {
         let _ = self.companion_tx.send(msg.to_string());
     }
+}
+
+#[derive(Clone, Debug, Default)]
+struct KeyNodeState {
+    input_tokens_used: u64,
+    output_tokens_used: u64,
+    next_reset_time: u64,
+    is_paid_tier: bool,
+    last_error: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -1061,7 +1070,7 @@ async fn gemini_chat(
             },
             {
                 "name": "web_search",
-                "description": "Search the web for current information, documentation, or anything you don't know. Use this whenever you need up-to-date info.",
+                "description": "Search the web for current information. Note: Search result URLs may be Google grounding redirects (vertexaisearch.cloud.google.com). Do NOT hallucinate or guess the original clean URL. If you need to open a search result, use the exact redirect link provided.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1116,42 +1125,98 @@ async fn gemini_chat(
         "generationConfig": generation_config
     });
 
-    // Strategy: avoid model fallback. It costs requests and can hit the same free-tier bucket.
-    // Rotate keys for ordinary errors, but on 429 wait/retry instead of burning more calls.
-
-    let start_idx = {
-        let mut guard = state.gemini_key_index.lock().map_err(|e| format!("Lock error: {e}"))?;
-        let idx = *guard % keys.len();
-        *guard = (*guard + 1) % keys.len();
-        idx
-    };
-
+    // Strategy: use smart node tracker to pick the key with lowest usage that isn't rate-limited.
     let mut log_lines: Vec<String> = Vec::new();
+    let mut rate_limit_wait: Option<u64> = None;
+    let now = now_millis();
+    let mut keys_with_stats = Vec::new();
+
+    {
+        let mut guard = state.gemini_key_nodes.lock().map_err(|e| format!("Lock error: {e}"))?;
+        for (i, key) in keys.iter().enumerate() {
+            let entry = guard.entry(key.clone()).or_insert_with(KeyNodeState::default);
+            keys_with_stats.push((
+                i, 
+                key.clone(), 
+                entry.input_tokens_used, 
+                entry.output_tokens_used, 
+                entry.next_reset_time, 
+                entry.is_paid_tier
+            ));
+        }
+    }
+
+    // Sort keys: available keys first (next_reset_time <= now OR paid tier), then by lowest total estimated tokens.
+    keys_with_stats.sort_by(|a, b| {
+        let a_avail = a.5 || a.4 <= now;
+        let b_avail = b.5 || b.4 <= now;
+        if a_avail && b_avail {
+            let a_tot = a.2 + a.3;
+            let b_tot = b.2 + b.3;
+            a_tot.cmp(&b_tot)
+        } else if a_avail {
+            std::cmp::Ordering::Less
+        } else if b_avail {
+            std::cmp::Ordering::Greater
+        } else {
+            a.4.cmp(&b.4)
+        }
+    });
+
     log_lines.push(format!(
-        "Key #{} on {} ({} total keys, maxOutputTokens {}, thinkingBudget {})",
-        start_idx + 1,
+        "Using node tracker on {} ({} total keys, maxOutputTokens {}, thinkingBudget {})",
         model,
         keys.len(),
         max_output_tokens,
         thinking_budget
     ));
 
-    let mut rate_limit_wait: Option<u64> = None;
+    for (key_idx, key, in_tok, out_tok, next_reset, is_paid) in keys_with_stats {
+        if !is_paid && next_reset > now {
+            let wait_secs = (next_reset - now) / 1000;
+            log_lines.push(format!("  \u{23f3} key #{}: rate limited, resets in {}s", key_idx + 1, wait_secs));
+            rate_limit_wait = Some(rate_limit_wait.map(|w| w.min(wait_secs)).unwrap_or(wait_secs));
+            continue; // Keep iterating to find if there's any available key
+        }
 
-    for offset in 0..keys.len().min(2) {
-        let key_idx = (start_idx + offset) % keys.len();
+        let tot_tok = in_tok + out_tok;
+        log_lines.push(format!("  \u{2192} trying key #{} (est tokens: {}{})...", 
+            key_idx + 1, tot_tok, if is_paid { " [PAID]" } else { "" }));
 
-        log_lines.push(format!("  \u{2192} trying key #{}...", key_idx + 1));
-
-        let (status, headers, response_body) = match try_gemini_with_key(&state.client, &keys[key_idx], model, &body).await {
+        let (status, headers, response_body) = match try_gemini_with_key(&state.client, &key, model, &body).await {
             Ok(pair) => pair,
             Err(e) => {
-                log_lines.push(format!("  \u{2717} key #{}: network error \u{2014} {}", key_idx + 1, e));
+                let err_str = e.to_string();
+                log_lines.push(format!("  \u{2717} key #{}: network error \u{2014} {}", key_idx + 1, err_str));
+                if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                    if let Some(entry) = guard.get_mut(&key) {
+                        entry.last_error = Some(format!("Network Error: {}", err_str));
+                    }
+                }
                 continue;
             }
         };
 
         if status.is_success() {
+            let input_tokens = response_body.get("usageMetadata")
+                .and_then(|u| u.get("promptTokenCount"))
+                .and_then(|t| t.as_u64())
+                .unwrap_or(0);
+            let output_tokens = response_body.get("usageMetadata")
+                .and_then(|u| u.get("candidatesTokenCount"))
+                .and_then(|t| t.as_u64())
+                .unwrap_or(0);
+
+            if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                if let Some(entry) = guard.get_mut(&key) {
+                    if input_tokens > 0 || output_tokens > 0 {
+                        entry.input_tokens_used += input_tokens;
+                        entry.output_tokens_used += output_tokens;
+                    }
+                    entry.last_error = None; // Clear error on success
+                }
+            }
+
             let mut chat_res = parse_gemini_response(response_body)?;
             if let Some(rem_req) = headers.get("x-ratelimit-remaining-requests") {
                 if let Ok(val) = rem_req.to_str().map(|s| s.parse::<i64>()) {
@@ -1175,39 +1240,29 @@ async fn gemini_chat(
             .to_string();
 
         if http_code == 429 {
-            let wait_secs = parse_retry_after_secs(&response_body).unwrap_or(30);
-            rate_limit_wait = Some(rate_limit_wait.map(|w| w.min(wait_secs)).unwrap_or(wait_secs));
-
-            // Quick blip (≤5s): wait and retry same key once
-            if wait_secs <= 5 {
-                log_lines.push(format!("  \u{23f3} key #{}: short 429 ({}s), retrying...", key_idx + 1, wait_secs));
-                tokio::time::sleep(std::time::Duration::from_secs(wait_secs + 1)).await;
-
-                match try_gemini_with_key(&state.client, &keys[key_idx], model, &body).await {
-                    Ok((s, _headers, b)) if s.is_success() => {
-                        return parse_gemini_response(b);
-                    }
-                    Ok((s, _headers, b)) => {
-                        let e = b.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()).unwrap_or("still failing");
-                        log_lines.push(format!("  \u{2717} key #{}: HTTP {} after wait \u{2014} {}", key_idx + 1, s.as_u16(), e));
-                        if s.as_u16() == 429 {
-                            if let Some(new_wait) = parse_retry_after_secs(&b) {
-                                rate_limit_wait = Some(rate_limit_wait.map(|w| w.min(new_wait)).unwrap_or(new_wait));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        log_lines.push(format!("  \u{2717} key #{}: network error after wait \u{2014} {}", key_idx + 1, e));
-                    }
-                }
-            } else {
-                log_lines.push(format!("  \u{2717} key #{}: 429 ({}s) \u{2014} frontend will handle", key_idx + 1, wait_secs));
+            if is_paid {
+                log_lines.push(format!("  \u{2717} key #{}: 429 on PAID key ({}s) \u{2014} tracker updated", key_idx + 1, parse_retry_after_secs(&response_body).unwrap_or(30)));
+                // It's a paid tier but it hit a rate limit? Fallthrough or wait.
             }
-            break;
+            let wait_secs = parse_retry_after_secs(&response_body).unwrap_or(30);
+            let next_reset_time = now_millis() + (wait_secs * 1000);
+            if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                if let Some(entry) = guard.get_mut(&key) {
+                    entry.next_reset_time = next_reset_time;
+                }
+            }
+            rate_limit_wait = Some(rate_limit_wait.map(|w| w.min(wait_secs)).unwrap_or(wait_secs));
+            log_lines.push(format!("  \u{2717} key #{}: 429 ({}s) \u{2014} tracker updated", key_idx + 1, wait_secs));
+            continue;
         }
 
-        // Non-429 errors: try one more key
+        // Non-429 errors
         log_lines.push(format!("  \u{2717} key #{}: HTTP {} \u{2014} {}", key_idx + 1, http_code, err_msg));
+        if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+            if let Some(entry) = guard.get_mut(&key) {
+                entry.last_error = Some(format!("HTTP {} - {}", http_code, err_msg));
+            }
+        }
     }
 
     let full_log = log_lines.join("\n");
@@ -1506,26 +1561,69 @@ async fn nami_agent_web_search(
         }
     });
 
-    // Try keys one at a time on the efficient default model, rotating start per request.
+    // Try keys one at a time on the efficient default model.
     let model = DEFAULT_GEMINI_MODEL;
+    
+    let now = now_millis();
+    let mut keys_with_stats = Vec::new();
+    if let Ok(guard) = state.gemini_key_nodes.lock() {
+        for key in &keys {
+            let entry = guard.get(key).cloned().unwrap_or_default();
+            keys_with_stats.push((
+                key.clone(), 
+                entry.input_tokens_used, 
+                entry.output_tokens_used, 
+                entry.next_reset_time, 
+                entry.is_paid_tier
+            ));
+        }
+    }
+    keys_with_stats.sort_by(|a, b| {
+        let a_avail = a.4 || a.3 <= now;
+        let b_avail = b.4 || b.3 <= now;
+        if a_avail && b_avail {
+            let a_tot = a.1 + a.2;
+            let b_tot = b.1 + b.2;
+            a_tot.cmp(&b_tot)
+        } else if a_avail {
+            std::cmp::Ordering::Less
+        } else if b_avail {
+            std::cmp::Ordering::Greater
+        } else {
+            a.3.cmp(&b.3)
+        }
+    });
 
-    let start_idx = {
-        let mut guard = state.gemini_key_index.lock().map_err(|e| format!("Lock error: {e}"))?;
-        let idx = *guard % keys.len();
-        *guard = (*guard + 1) % keys.len();
-        idx
-    };
-
-    for offset in 0..keys.len() {
-        let key_idx = (start_idx + offset) % keys.len();
+    for (key, _, _, next_reset, is_paid) in keys_with_stats {
+        if !is_paid && next_reset > now { continue; } // skip rate-limited keys
 
         let url = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent?key={}",
-            model, keys[key_idx]
+            model, key
+
         );
         if let Ok(resp) = state.client.post(&url).json(&search_body).send().await {
             if resp.status().is_success() {
                 if let Ok(data) = resp.json::<serde_json::Value>().await {
+                    let input_tokens = data.get("usageMetadata")
+                        .and_then(|u| u.get("promptTokenCount"))
+                        .and_then(|t| t.as_u64())
+                        .unwrap_or(0);
+                    let output_tokens = data.get("usageMetadata")
+                        .and_then(|u| u.get("candidatesTokenCount"))
+                        .and_then(|t| t.as_u64())
+                        .unwrap_or(0);
+
+                    if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                        if let Some(entry) = guard.get_mut(&key) {
+                            if input_tokens > 0 || output_tokens > 0 {
+                                entry.input_tokens_used += input_tokens;
+                                entry.output_tokens_used += output_tokens;
+                            }
+                            entry.last_error = None; // Clear error on success
+                        }
+                    }
+
                     // Extract grounding chunk URLs (real search result URLs from Google Search grounding)
                     let grounding_urls: Vec<String> = data["candidates"]
                         .as_array()
@@ -1558,11 +1656,103 @@ async fn nami_agent_web_search(
                         }
                     }
                 }
+            } else if resp.status().as_u16() == 429 && !is_paid {
+                if let Ok(err_data) = resp.json::<serde_json::Value>().await {
+                    let wait_secs = parse_retry_after_secs(&err_data).unwrap_or(30);
+                    let next_reset_time = now_millis() + (wait_secs * 1000);
+                    if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                        if let Some(entry) = guard.get_mut(&key) {
+                            entry.next_reset_time = next_reset_time;
+                        }
+                    }
+                }
+            } else if resp.status().is_client_error() || resp.status().is_server_error() {
+                if let Ok(err_data) = resp.json::<serde_json::Value>().await {
+                    let err_msg = err_data.get("error").and_then(|e| e.get("message")).and_then(|m| m.as_str()).unwrap_or("Unknown").to_string();
+                    if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                        if let Some(entry) = guard.get_mut(&key) {
+                            entry.last_error = Some(format!("HTTP {} - {}", resp.status().as_u16(), err_msg));
+                        }
+                    }
+                }
+            }
+        } else if let Err(e) = state.client.post(&url).json(&search_body).send().await {
+            let err_str = e.to_string();
+            if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+                if let Some(entry) = guard.get_mut(&key) {
+                    entry.last_error = Some(format!("Network Error: {}", err_str));
+                }
             }
         }
     }
 
     Err("Web search: all keys exhausted.".to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NodeTrackerStatePayload {
+    keys: Vec<NodeTrackerKeyPayload>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NodeTrackerKeyPayload {
+    key_prefix: String,
+    input_tokens_used: u64,
+    output_tokens_used: u64,
+    next_reset_time: u64,
+    is_rate_limited: bool,
+    is_paid_tier: bool,
+    last_error: Option<String>,
+    key_id: String,
+}
+
+#[tauri::command]
+fn nami_agent_get_node_tracker(state: State<'_, DesktopRuntimeState>, api_keys: String) -> NodeTrackerStatePayload {
+    let mut result_keys = Vec::new();
+    let keys = parse_api_keys(&api_keys);
+    let now = now_millis();
+    
+    if let Ok(guard) = state.gemini_key_nodes.lock() {
+        for key in keys {
+            let (in_tok, out_tok, reset, paid, err) = if let Some(entry) = guard.get(&key) {
+                (entry.input_tokens_used, entry.output_tokens_used, entry.next_reset_time, entry.is_paid_tier, entry.last_error.clone())
+            } else {
+                (0, 0, 0, false, None)
+            };
+            
+            let prefix = if key.len() > 10 {
+                format!("{}...", &key[0..10])
+            } else {
+                "HIDDEN".to_string()
+            };
+            
+            result_keys.push(NodeTrackerKeyPayload {
+                key_id: key.clone(),
+                key_prefix: prefix,
+                input_tokens_used: in_tok,
+                output_tokens_used: out_tok,
+                next_reset_time: reset,
+                is_rate_limited: !paid && reset > now,
+                is_paid_tier: paid,
+                last_error: err,
+            });
+        }
+    }
+    
+    NodeTrackerStatePayload { keys: result_keys }
+}
+
+#[tauri::command]
+fn nami_agent_toggle_node_paid_tier(state: State<'_, DesktopRuntimeState>, key: String, is_paid: bool) -> Result<(), String> {
+    if let Ok(mut guard) = state.gemini_key_nodes.lock() {
+        let entry = guard.entry(key).or_insert_with(KeyNodeState::default);
+        entry.is_paid_tier = is_paid;
+        Ok(())
+    } else {
+        Err("Failed to lock state".to_string())
+    }
 }
 
 /* ── Nami Companion WebSocket server ─────────────────────────────────── */
@@ -1654,6 +1844,8 @@ fn main() {
     tauri::Builder::default()
         .manage(runtime_state)
         .invoke_handler(tauri::generate_handler![
+            nami_agent_get_node_tracker,
+            nami_agent_toggle_node_paid_tier,
             get_environment,
             get_secure_auth,
             set_elevation_token,

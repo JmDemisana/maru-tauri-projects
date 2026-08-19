@@ -119,47 +119,49 @@ const invoke = window.__TAURI__?.core?.invoke?.bind(window.__TAURI__.core);
 
 const MODEL_OPTIONS = [
   {
+    id: "gemini-3.5-flash",
+    label: "Flash (3.5 Flash)",
+    note: "15 RPM Free",
+    maxOutputTokens: 8192,
+    thinkingBudget: 0,
+  },
+  {
+    id: "gemini-3.1-pro",
+    label: "Pro (3.1 Pro Reasoning)",
+    note: "Thinking, 2 RPM Free",
+    maxOutputTokens: 8192,
+    thinkingBudget: 4096,
+  },
+  {
+    id: "gemini-3.1-flash-lite",
+    label: "Lite (3.1 Flash Lite)",
+    note: "15 RPM Free",
+    maxOutputTokens: 2048,
+    thinkingBudget: 0,
+  },
+  {
     id: "gemini-2.5-flash-lite",
     label: "Lite (2.5 Flash Lite)",
-    note: "15 RPM Free",
+    note: "15 RPM Free (Deprecating Oct 2026)",
     maxOutputTokens: 2048,
     thinkingBudget: 0,
   },
   {
     id: "gemini-2.5-flash",
     label: "Flash (2.5 Flash)",
-    note: "10 RPM Free",
+    note: "10 RPM Free (Deprecating Oct 2026)",
     maxOutputTokens: 3072,
     thinkingBudget: 0,
   },
   {
     id: "gemini-2.5-pro",
     label: "Pro (2.5 Pro Reasoning)",
-    note: "Thinking, 2 RPM Free",
+    note: "Thinking, 2 RPM Free (Deprecating Oct 2026)",
     maxOutputTokens: 8192,
     thinkingBudget: 4096,
-  },
-  {
-    id: "gemini-2.0-flash",
-    label: "Flash (2.0 Flash)",
-    note: "10 RPM Free",
-    maxOutputTokens: 2048,
-    thinkingBudget: 0,
-  },
-  {
-    id: "gemini-1.5-pro",
-    label: "Pro (1.5 Pro)",
-    note: "2 RPM Free",
-    maxOutputTokens: 8192,
-    thinkingBudget: 0,
-  },
-  {
-    id: "gemini-1.5-flash",
-    label: "Flash (1.5 Flash)",
-    note: "15 RPM Free",
-    maxOutputTokens: 2048,
-    thinkingBudget: 0,
-  },
+  }
+
+
 ];
 
 const MAX_HISTORY_MESSAGES = 14;
@@ -535,6 +537,7 @@ function NamiAgentChat({ onRoute, compact, hideTitlebar, onReset }: NamiAgentPro
       "  web_search(query)         — Live web search for current info.",
       "",
       "BUILT-IN APPLET ROUTES (respond warmly and include the token):",
+      "  [ROUTE:NODE]   - View the API key node tracker",
       "  [ROUTE:CUP]    — Cup, Cupper, Cuppers game",
       "  [ROUTE:TUP]    — TUP Grade Solver",
       "  [ROUTE:DAEL]   — Dael or No Dael game",
@@ -922,11 +925,14 @@ function NamiAgentChat({ onRoute, compact, hideTitlebar, onReset }: NamiAgentPro
               <EntryLabel role={msg.role} name={msg.name} args={msg.functionCall?.args} />
             </div>
             {msg.role === "function" && (
-              <div style={{ paddingLeft: "0.2rem" }}>
-                <pre style={{ margin: "0.3rem 0 0", fontSize: "0.78rem", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", opacity: 0.75, maxHeight: 200, overflow: "auto", background: "rgba(0,0,0,0.2)", padding: "0.4rem 0.5rem", borderRadius: 6 }}>
+              <details style={{ paddingLeft: "0.2rem", marginTop: "0.3rem" }}>
+                <summary style={{ fontSize: "0.78rem", opacity: 0.6, cursor: "pointer", userSelect: "none", outline: "none", listStyle: "none", display: "inline-block" }}>
+                  <span style={{ borderBottom: "1px dashed rgba(255,255,255,0.3)" }}>Show technical output</span>
+                </summary>
+                <pre style={{ margin: "0.4rem 0 0", fontSize: "0.75rem", lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word", fontFamily: "monospace", opacity: 0.75, maxHeight: 200, overflow: "auto", background: "rgba(0,0,0,0.2)", padding: "0.5rem 0.6rem", borderRadius: 6, border: "1px solid rgba(255,255,255,0.05)" }}>
                   {msg.text.length > 2000 ? msg.text.slice(0, 2000) + "\n…[truncated]" : msg.text}
                 </pre>
-              </div>
+              </details>
             )}
             {msg.role === "model" && msg.functionCall && msg.functionCall.name === "run_command" && (
               <div style={{ padding: "0.2rem 0.2rem 0 0.2rem" }}>
