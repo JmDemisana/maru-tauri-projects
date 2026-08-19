@@ -10,7 +10,7 @@ Welcome to the **Maru Desktop Monorepo**! This repository houses all native desk
 
 > [!WARNING]
 > **Pre-compiled GitHub releases provided here are Windows builds (`.exe` / `.msi`) only!**  
-> If you are on **macOS** or **Linux**, you will need to build the application on your own machine using the single-line build command below.
+> If you are on **macOS** or **Linux**, you will need to build the application on your own machine using the single-line automated build commands below.
 
 > [!CAUTION]
 > **Tauri applications require your operating system's native WebView runtime!**  
@@ -21,21 +21,57 @@ Welcome to the **Maru Desktop Monorepo**! This repository houses all native desk
 
 ---
 
-## ⚡ 1-Line Automated Build Command
+## 🛠️ Step 1: Install Node.js (If you haven't yet!)
 
-Got **Node.js** and the **Rust toolchain** installed? Copy-paste this single command into your terminal—it automatically provisions `pnpm`, installs all workspace dependencies if not installed yet, and compiles the production binary in one shot!
+To build any of the apps, you'll need **Node.js (v20+)** on your machine. If you don't have it yet, grab it with one command:
+
+- **Windows (PowerShell)**:
+  ```powershell
+  winget install OpenJS.NodeJS.LTS
+  ```
+- **macOS (Terminal / Homebrew)**:
+  ```bash
+  brew install node
+  ```
+- **Linux (Debian / Ubuntu / Pop!_OS)**:
+  ```bash
+  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt install -y nodejs
+  ```
+- Or download the official installer directly from **[nodejs.org](https://nodejs.org)**.
+
+---
+
+## ⚡ Step 2: 1-Line Self-Build Command (Auto-installs Rust & Builds)
+
+Once you have Node.js, you don't need to manually configure Rust or package managers! Copy-paste the single line below into your terminal. It will **automatically check and install the Rust toolchain if missing**, provision `pnpm`, install all dependencies, and compile the native binary in one shot!
 
 ### 🤖 Build Nami Agent Desktop:
-```bash
-npx --yes pnpm install && npx --yes pnpm build:nami
-```
+
+- **macOS / Linux (Bash / Zsh)**:
+  ```bash
+  (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:nami
+  ```
+
+- **Windows (PowerShell)**:
+  ```powershell
+  if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:nami
+  ```
+
+---
 
 ### 📁 Build Files Companion:
-```bash
-npx --yes pnpm install && npx --yes pnpm build:files
-```
 
-*(Your built executables will be ready in `apps/<app-name>/src-tauri/target/release/`!)*
+- **macOS / Linux (Bash / Zsh)**:
+  ```bash
+  (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:files
+  ```
+
+- **Windows (PowerShell)**:
+  ```powershell
+  if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:files
+  ```
+
+*(Your built executables will be waiting for you in `apps/<app-name>/src-tauri/target/release/`!)*
 
 ---
 
