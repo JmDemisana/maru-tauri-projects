@@ -6,25 +6,31 @@ Welcome to the **Maru Desktop Monorepo**! This repository houses all native desk
 
 ---
 
-## ⚠️ Important Platform & Binary Notice
+## 🚀 How to Get & Run the Apps
 
-> [!WARNING]
-> **Pre-compiled GitHub releases provided here are Windows builds (`.exe` / `.msi`) only!**  
-> If you are on **macOS** or **Linux**, you will need to build the application on your own machine using the single-line automated build commands below.
+Are you just looking to use the app, or are you building it from source? Pick your path below:
 
-> [!CAUTION]
-> **Tauri applications require your operating system's native WebView runtime!**  
-> They will **NOT** launch if the webview component has been uninstalled or stripped from your system:
-> - **Windows**: Requires **Microsoft Edge WebView2** (pre-installed on Windows 10/11; will fail if removed by debloater scripts).
-> - **macOS**: Requires built-in **WebKit (WKWebView)**.
-> - **Linux**: Requires **WebKit2GTK** (e.g., `sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`).
+### 🟢 Path A: Running on Windows (Pre-built Executables)
+*No programming tools, Node.js, or Rust required!*
+
+1. Head over to the **[Releases](https://github.com/JmDemisana/maru-tauri-projects/releases)** tab.
+2. Download the latest installer or executable for your app:
+   - **Nami Agent Desktop**: `nami-agent_x.x.x_x64-setup.exe`
+   - **Files Companion**: `files-companion_x.x.x_x64.exe`
+3. Run the installer and you're good to go!
+
+> [!NOTE]
+> **Windows WebView Requirement**: The app requires **Microsoft Edge WebView2** to render the interface (pre-installed on Windows 10/11). The app will fail to open only if WebView2 was manually uninstalled by aggressive Windows debloater scripts.
 
 ---
 
-## 🛠️ Step 1: Install Node.js (If you haven't yet!)
+### 🛠️ Path B: Building the Apps Yourself (macOS, Linux, or Custom Builds)
+*For Linux/macOS users or developers building from source code.*
 
-To build any of the apps, you'll need **Node.js (v20+)** on your machine. If you don't have it yet, grab it with one command:
+Because GitHub Releases only provide pre-compiled Windows binaries, **macOS** and **Linux** users will build the binary on their machines using the simple 2-step guide below:
 
+#### 📦 Step 1: Install Node.js (v20+)
+If you don't have Node.js installed yet, grab it with one command:
 - **Windows (PowerShell)**:
   ```powershell
   winget install OpenJS.NodeJS.LTS
@@ -39,39 +45,36 @@ To build any of the apps, you'll need **Node.js (v20+)** on your machine. If you
   ```
 - Or download the official installer directly from **[nodejs.org](https://nodejs.org)**.
 
----
+#### ⚡ Step 2: 1-Line Build Command (Auto-installs Rust & Compiles)
+Copy-paste this single line into your terminal. It **automatically checks and installs the Rust toolchain if missing**, sets up `pnpm`, installs dependencies, and compiles the native executable in one shot!
 
-## ⚡ Step 2: 1-Line Self-Build Command (Auto-installs Rust & Builds)
-
-Once you have Node.js, you don't need to manually configure Rust or package managers! Copy-paste the single line below into your terminal. It will **automatically check and install the Rust toolchain if missing**, provision `pnpm`, install all dependencies, and compile the native binary in one shot!
-
-### 🤖 Build Nami Agent Desktop:
-
+##### 🤖 Build Nami Agent Desktop:
 - **macOS / Linux (Bash / Zsh)**:
   ```bash
   (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:nami
   ```
-
 - **Windows (PowerShell)**:
   ```powershell
   if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:nami
   ```
 
----
-
-### 📁 Build Files Companion:
-
+##### 📁 Build Files Companion:
 - **macOS / Linux (Bash / Zsh)**:
   ```bash
   (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:files
   ```
-
 - **Windows (PowerShell)**:
   ```powershell
   if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:files
   ```
 
 *(Your built executables will be waiting for you in `apps/<app-name>/src-tauri/target/release/`!)*
+
+#### 🌐 System WebView Runtime Requirements:
+Tauri uses the operating system's native WebView engine:
+- **Windows**: Microsoft Edge WebView2
+- **macOS**: Built-in WebKit (WKWebView)
+- **Linux**: WebKit2GTK (`sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`)
 
 ---
 
