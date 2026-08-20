@@ -1,2 +1,2 @@
-// Shared UI components for Maru desktop applications
-export const UI_VERSION = "0.1.0";
+export { TitleBar } from "./TitleBar";
+export { LoadingDots, type LoadingDotsProps } from "./LoadingDots";

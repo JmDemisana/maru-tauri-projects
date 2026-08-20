@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monika Piano Maker</title>
+    <link rel="icon" type="image/png" href="/app-icon.png" />
+    <style>
+      :root {
+        --theme-panel-bg: #141721;
+        --theme-border-soft: rgba(255, 255, 255, 0.08);
+        --theme-accent: #38bdf8;
+        --theme-accent-glow: rgba(56, 189, 248, 0.25);
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html, body, #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background-color: #0b0d14;
+        color: #f1f5f9;
+        font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      }
+
+      /* Windows-style "Working on it..." streaming dots */
+      .win-dots-track {
+        position: relative;
+        width: 120px;
+        height: 10px;
+        overflow: hidden;
+      }
+
+      .win-dots-track span {
+        position: absolute;
+        top: 2px;
+        left: -10px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: #38bdf8;
+        opacity: 0;
+        animation: winDots 2s ease-in-out infinite;
+      }
+
+      .win-dots-track span:nth-child(1) { animation-delay: 0s; }
+      .win-dots-track span:nth-child(2) { animation-delay: 0.18s; }
+      .win-dots-track span:nth-child(3) { animation-delay: 0.36s; }
+      .win-dots-track span:nth-child(4) { animation-delay: 0.54s; }
+      .win-dots-track span:nth-child(5) { animation-delay: 0.72s; }
+
+      @keyframes winDots {
+        0% {
+          left: -10px;
+          opacity: 0;
+          transform: scale(0.6);
+        }
+        15% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        85% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        100% {
+          left: 130px;
+          opacity: 0;
+          transform: scale(0.6);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; gap: 1rem; color: #94a3b8;">
+        <div class="win-dots-track">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div style="font-size: 0.95rem; font-weight: 500; letter-spacing: 0.01em;">
+          Working on it...
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

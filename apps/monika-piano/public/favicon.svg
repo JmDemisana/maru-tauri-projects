@@ -1,0 +1,39 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="monika-bg" x1="50" y1="50" x2="206" y2="206" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2D9668"/>
+      <stop offset="0.5" stop-color="#1E6B4B"/>
+      <stop offset="1" stop-color="#123B2A"/>
+    </linearGradient>
+    <linearGradient id="monika-ribbon" x1="80" y1="70" x2="176" y2="186" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFA8BD"/>
+      <stop offset="1" stop-color="#E85B81"/>
+    </linearGradient>
+    <linearGradient id="key-glow" x1="70" y1="90" x2="186" y2="170" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#D6F5E3"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="78" r="48" fill="#2D9668" fill-opacity="0.25"/>
+  <circle cx="186" cy="180" r="42" fill="#E85B81" fill-opacity="0.2"/>
+  <rect x="54" y="64" width="148" height="128" rx="30" fill="url(#monika-bg)"/>
+
+  <!-- Piano Keyboard Graphic -->
+  <g transform="translate(68, 86)">
+    <!-- White Keys Base -->
+    <rect x="0" y="0" width="120" height="74" rx="8" fill="url(#key-glow)"/>
+    <!-- Key dividers -->
+    <line x1="24" y1="0" x2="24" y2="74" stroke="#BDD6C8" stroke-width="1.5"/>
+    <line x1="48" y1="0" x2="48" y2="74" stroke="#BDD6C8" stroke-width="1.5"/>
+    <line x1="72" y1="0" x2="72" y2="74" stroke="#BDD6C8" stroke-width="1.5"/>
+    <line x1="96" y1="0" x2="96" y2="74" stroke="#BDD6C8" stroke-width="1.5"/>
+
+    <!-- Black Keys -->
+    <rect x="15" y="0" width="16" height="42" rx="3" fill="#1C2E24"/>
+    <rect x="39" y="0" width="16" height="42" rx="3" fill="#1C2E24"/>
+    <rect x="87" y="0" width="16" height="42" rx="3" fill="#1C2E24"/>
+  </g>
+
+  <!-- Musical Note Accent with Coral Ribbon Highlight -->
+  <path d="M168 76V116C168 122.6 162.6 128 156 128C149.4 128 144 122.6 144 116C144 109.4 149.4 104 156 104C158.8 104 161.4 105 163.4 106.6V84L188 78V98L168 103V76Z" fill="url(#monika-ribbon)"/>
+</svg>

@@ -4,7 +4,9 @@
   "scripts": {
     "dev:nami": "pnpm --filter nami-agent tauri dev",
     "dev:files": "pnpm --filter files-companion tauri dev",
+    "dev:monika": "pnpm --filter monika-piano tauri dev",
     "build:nami": "pnpm --filter nami-agent tauri build",
-    "build:files": "pnpm --filter files-companion tauri build"
+    "build:files": "pnpm --filter files-companion tauri build",
+    "build:monika": "pnpm --filter monika-piano tauri build"
   }
 }

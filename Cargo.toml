@@ -4,6 +4,7 @@ members = [
     "crates/maru-core",
     "apps/nami-agent/src-tauri",
     "apps/files-companion/src-tauri",
+    "apps/monika-piano/src-tauri",
 ]
 
 [workspace.dependencies]

@@ -15,19 +15,20 @@ Are you just looking to use the app, or are you building it from source? Pick yo
 
 1. Head over to the **[Releases](https://github.com/JmDemisana/maru-tauri-projects/releases)** tab.
 2. Download the latest installer or executable for your app:
+   - **Monika Piano Maker**: `Monika-Piano-Maker_x.x.x_x64-setup.exe` (or standalone `.exe`)
    - **Nami Agent Desktop**: `nami-agent_x.x.x_x64-setup.exe`
    - **Files Companion**: `files-companion_x.x.x_x64.exe`
-3. Run the installer and you're good to go!
+3. Run the installer or open the executable and you're good to go!
 
 > [!NOTE]
-> **Windows WebView Requirement**: The app requires **Microsoft Edge WebView2** to render the interface (pre-installed on Windows 10/11). The app will fail to open only if WebView2 was manually uninstalled by aggressive Windows debloater scripts.
+> **Windows WebView Requirement**: The apps require **Microsoft Edge WebView2** to render the interface (pre-installed on Windows 10/11). The app will fail to open only if WebView2 was manually uninstalled by aggressive Windows debloater scripts.
 
 ---
 
 ### 🛠️ Path B: Building the Apps Yourself (macOS, Linux, or Custom Builds)
 *For Linux/macOS users or developers building from source code.*
 
-Because GitHub Releases only provide pre-compiled Windows binaries, **macOS** and **Linux** users will build the binary on their machines using the simple 2-step guide below:
+Because GitHub Releases provide pre-compiled Windows binaries, **macOS** and **Linux** users can build the binary on their machines using the simple 2-step guide below:
 
 #### 📦 Step 1: Install Node.js (v20+)
 If you don't have Node.js installed yet, grab it with one command:
@@ -53,7 +54,15 @@ If you don't have Node.js installed yet, grab it with one command:
 > sudo apt update && sudo apt install -y libwebkit2gtk-4.1-dev build-essential curl wget libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 > ```
 
-Copy-paste this single line into your terminal. It **automatically checks and installs the Rust toolchain if missing**, sets up `pnpm`, installs dependencies, and compiles the native executable in one shot!
+##### 🎹 Build Monika Piano Maker:
+- **macOS / Linux (Bash / Zsh)**:
+  ```bash
+  (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:monika
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:monika
+  ```
 
 ##### 🤖 Build Nami Agent Desktop:
 - **macOS / Linux (Bash / Zsh)**:
@@ -81,6 +90,16 @@ Copy-paste this single line into your terminal. It **automatically checks and in
 
 ## 🖥️ What's Inside?
 
+### 🎹 [`apps/monika-piano`](./apps/monika-piano) — *Monika Piano Maker*
+*Comprehensive desktop DAW & piano workstation for Monika After Story (MAS)!*
+
+- 🎼 **Full 20-Key Workstation & Virtual Piano**: 12 white keys + 8 black keys matching Monika's in-game piano layout with low-latency Web Audio playback.
+- 📂 **Universal MIDI & JSON Parsing**: Drop any `.mid`, `.midi`, or annotated `.json` file to automatically fold octaves into Monika's authentic 20-key playable range (`N4` to `A5SH`).
+- ⏱️ **Precision Phrase & Delay Sequencer**: Fine-tune per-note timings, set verse checkpoints, and calibrate BPMs.
+- 💾 **Native File Dialogs**: Direct export to `Piano Studio Standard JSON (*.json)` and `Monika After Story Compact JSON (*.json)` using native Windows Save dialogues.
+- 🌸 **Monika Expressions Studio**: Preview Monika's authentic sprite poses, eyes, eyebrows, and mouths live while writing lyric phrases.
+- 🪟 **Authentic Windows 11 Title Bar**: Borderless custom title bar fitted to monitor work areas with multi-monitor project switching, minimize, and save-first exit protection.
+
 ### 🌟 [`apps/nami-agent`](./apps/nami-agent) — *Nami Agent Desktop*
 *Your personal AI companion and native workstation shell!*
 
@@ -99,7 +118,7 @@ A lightweight desktop companion designed to interface with the Notion-backed Fil
 ## 🧩 Shared Crates & Packages
 
 - **`crates/maru-core`**: The shared Rust backbone powering secure credential encryption, local filesystem bridges, and API relays across all our desktop apps.
-- **`packages/ui`**: Shared React components styled in our unified in-house dark aesthetic (`@maru/ui`).
+- **`packages/ui`**: Shared React components styled in our unified in-house dark aesthetic (`@maru/ui`), including the canonical Windows 11 `TitleBar` and streaming `LoadingDots`.
 - **`packages/theme`**: Shared CSS design tokens, glowing borders, and visual theme variables (`@maru/theme`).
 
 ---
@@ -111,6 +130,9 @@ If you prefer running in development mode with live hot-reloading:
 ```bash
 # Install dependencies across all apps & packages
 pnpm install
+
+# Run Monika Piano Maker in development mode
+pnpm dev:monika
 
 # Run Nami Agent Desktop in development mode
 pnpm dev:nami
@@ -124,6 +146,7 @@ pnpm dev:files
 ## 🏷️ Release Tags
 
 Each desktop application is released independently using tag prefixes:
+- `monika-piano/vX.Y.Z` → Builds and attaches Windows `.msi` / `.exe` bundles for Monika Piano Maker
 - `nami-agent/vX.Y.Z` → Builds and attaches Windows `.msi` / `.exe` bundles for Nami Agent
 - `files-companion/vX.Y.Z` → Builds and releases Files Companion
 
