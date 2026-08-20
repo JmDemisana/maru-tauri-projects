@@ -1,6 +1,6 @@
 [package]
 name = "monika-piano"
-version = "1.0.0"
+version = "1.0.1"
 description = "Monika Piano Studio & Sprite Visualizer"
 authors = ["Maru"]
 edition = "2021"
