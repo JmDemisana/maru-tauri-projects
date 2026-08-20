@@ -1140,12 +1140,32 @@ export default function MonikaPianoMaker() {
           const p = { ...next[currentPIdx] };
           const delays = [...(p.noteDelays || p.notes.map(() => 0.35))];
           delays[currentNIdx - 1] = deltaSec;
+
+          // If we just tapped the final note of this phrase, also calibrate its trailing hold
+          if (currentNIdx === targetPhrase.notes.length - 1) {
+            delays[currentNIdx] = Number((deltaSec * 1.5).toFixed(3));
+          }
+
           p.noteDelays = delays;
           next[currentPIdx] = p;
         } else if (currentPIdx > 0) {
-          // Setting phrase pause for previous phrase
+          // Transitioning across phrases: allocate delta between last note's hold and inter-phrase pause
           const prevP = { ...next[currentPIdx - 1] };
-          prevP.phraseDelay = deltaSec;
+          const prevNotesCount = prevP.notes?.length || 1;
+          const prevDelays = [...(prevP.noteDelays || prevP.notes.map(() => 0.35))];
+          const lastNIdx = Math.max(0, prevNotesCount - 1);
+
+          // Calculate average note delay from previous phrase for natural cadence
+          const avgDelay = prevNotesCount > 1
+            ? prevDelays.slice(0, lastNIdx).reduce((a, b) => a + b, 0) / (prevNotesCount - 1)
+            : 0.32;
+
+          const lastNoteHold = Number(Math.min(avgDelay * 1.5, Math.max(0.2, deltaSec * 0.45)).toFixed(3));
+          const phrasePause = Number(Math.max(0.15, deltaSec - lastNoteHold).toFixed(3));
+
+          prevDelays[lastNIdx] = lastNoteHold;
+          prevP.noteDelays = prevDelays;
+          prevP.phraseDelay = phrasePause;
           next[currentPIdx - 1] = prevP;
         }
         return next;
