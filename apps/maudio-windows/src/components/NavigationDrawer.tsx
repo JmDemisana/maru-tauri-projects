@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NavigationScreen, LastfmProfile } from "../types";
-import { Compass, Radio, Cast, Settings, Heart, X } from "lucide-react";
+import { Compass, Radio, Cast, User, Disc, Settings, Heart, X, Sparkles } from "lucide-react";
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -22,23 +22,37 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
     {
       id: NavigationScreen.DISCOVERY,
       label: "Discovery",
-      desc: "Profile stats & recent history",
+      desc: "Music search & trending tracks",
       icon: Compass,
       color: "#ff71a2",
     },
     {
       id: NavigationScreen.SCROBBLING,
       label: "Scrobbling HUD",
-      desc: "Live media player & EQ",
+      desc: "Live Windows media & neon EQ",
       icon: Radio,
       color: "#70a5ff",
     },
     {
       id: NavigationScreen.MARUCAST,
       label: "Marucast Receiver",
-      desc: "Stream audio from phone",
+      desc: "Stream lossless audio from phone",
       icon: Cast,
       color: "#a78bfa",
+    },
+    {
+      id: NavigationScreen.PROFILE,
+      label: "Listener Profile",
+      desc: "Stats, history & top artists",
+      icon: User,
+      color: "#38bdf8",
+    },
+    {
+      id: NavigationScreen.NAMIREC,
+      label: "NamiRec Studio",
+      desc: "Monthly cassette retrospectives",
+      icon: Disc,
+      color: "#f472b6",
     },
     {
       id: NavigationScreen.SETTINGS,
@@ -65,8 +79,8 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               left: 0,
               right: 0,
               bottom: 0,
-              background: "rgba(0, 0, 0, 0.65)",
-              backdropFilter: "blur(6px)",
+              background: "rgba(0, 0, 0, 0.6)",
+              backdropFilter: "blur(8px)",
               zIndex: 100,
             }}
           />
@@ -76,19 +90,19 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 280 }}
+            transition={{ type: "spring", damping: 26, stiffness: 300 }}
             style={{
               position: "fixed",
               top: 0,
               left: 0,
               bottom: 0,
-              width: "300px",
+              width: "320px",
               background: "linear-gradient(180deg, #0e1322 0%, #070a13 100%)",
               borderRight: "1px solid rgba(255, 255, 255, 0.1)",
               zIndex: 101,
               display: "flex",
               flexDirection: "column",
-              boxShadow: "10px 0 30px rgba(0,0,0,0.5)",
+              boxShadow: "12px 0 36px rgba(0,0,0,0.6)",
             }}
           >
             {/* Header / Profile Card */}
@@ -119,16 +133,22 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                 <X size={18} />
               </button>
 
-              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+              <div
+                onClick={() => {
+                  onSelectScreen(NavigationScreen.PROFILE);
+                  onClose();
+                }}
+                style={{ display: "flex", alignItems: "center", gap: "14px", cursor: "pointer" }}
+              >
                 <div
                   style={{
                     position: "relative",
-                    width: "48px",
-                    height: "48px",
+                    width: "52px",
+                    height: "52px",
                     borderRadius: "50%",
-                    padding: "2px",
+                    padding: "2.5px",
                     background: "linear-gradient(135deg, #ff71a2, #70a5ff)",
-                    boxShadow: "0 0 16px rgba(255, 113, 162, 0.4)",
+                    boxShadow: "0 0 18px rgba(255, 113, 162, 0.45)",
                   }}
                 >
                   <img
@@ -145,12 +165,24 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                       (e.target as HTMLImageElement).src = "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png";
                     }}
                   />
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "-2px",
+                      right: "-2px",
+                      width: "16px",
+                      height: "16px",
+                      borderRadius: "50%",
+                      backgroundColor: "#4ade80",
+                      border: "2px solid #0e1322",
+                    }}
+                  />
                 </div>
                 <div style={{ overflow: "hidden" }}>
-                  <div style={{ fontSize: "15px", fontWeight: 700, color: "#fafcff" }}>
+                  <div style={{ fontSize: "15px", fontWeight: 800, color: "#fafcff" }}>
                     {profile?.username || "Maru-Chan"}
                   </div>
-                  <div style={{ fontSize: "12px", color: "var(--maru-accent-pink)", fontWeight: 600, marginTop: "2px" }}>
+                  <div style={{ fontSize: "12px", color: "var(--maru-accent-pink)", fontWeight: 700, marginTop: "2px" }}>
                     {profile ? `${profile.totalScrobbles.toLocaleString()} scrobbles` : "Connecting..."}
                   </div>
                 </div>
@@ -158,7 +190,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             </div>
 
             {/* Nav Menu */}
-            <div style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto" }}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentScreen === item.id;
@@ -172,7 +204,7 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "12px",
+                      gap: "14px",
                       padding: "12px 14px",
                       borderRadius: "12px",
                       border: isActive
@@ -190,20 +222,21 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
                   >
                     <div
                       style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "8px",
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "10px",
                         background: isActive ? `${item.color}25` : "rgba(255, 255, 255, 0.05)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         color: item.color,
+                        flexShrink: 0,
                       }}
                     >
-                      <Icon size={18} />
+                      <Icon size={19} />
                     </div>
                     <div>
-                      <div style={{ fontSize: "13.5px", fontWeight: 600 }}>{item.label}</div>
+                      <div style={{ fontSize: "13.5px", fontWeight: 700 }}>{item.label}</div>
                       <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)", marginTop: "1px" }}>
                         {item.desc}
                       </div>
@@ -227,9 +260,9 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
             >
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <Heart size={14} color="#70a5ff" fill="#70a5ff" />
-                <span>MAudio for Windows</span>
+                <span style={{ fontWeight: 600 }}>MAudio for Windows</span>
               </div>
-              <span style={{ opacity: 0.6 }}>v1.0.0</span>
+              <span style={{ opacity: 0.6, fontWeight: 600 }}>v1.0.0</span>
             </div>
           </motion.div>
         </>

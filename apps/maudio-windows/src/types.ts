@@ -2,6 +2,8 @@ export enum NavigationScreen {
   DISCOVERY = "DISCOVERY",
   SCROBBLING = "SCROBBLING",
   MARUCAST = "MARUCAST",
+  PROFILE = "PROFILE",
+  NAMIREC = "NAMIREC",
   SETTINGS = "SETTINGS",
 }
 
