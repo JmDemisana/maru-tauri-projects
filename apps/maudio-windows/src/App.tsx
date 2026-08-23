@@ -1,30 +1,32 @@
 import { useState, useEffect } from "react";
 import { TitleBar } from "@maru/ui";
-import { NavigationScreen, LastfmProfile, MediaState } from "./types";
+import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem } from "./types";
 import { NavigationDrawer } from "./components/NavigationDrawer";
 import { NotificationMirrorBottomBar } from "./components/NotificationMirrorBottomBar";
 import { SongDetailModal } from "./components/SongDetailModal";
 import { DiscoveryScreen } from "./screens/DiscoveryScreen";
-import { ScrobblingScreen } from "./screens/ScrobblingScreen";
-import { MarucastScreen } from "./screens/MarucastScreen";
+import { SearchScreen } from "./screens/SearchScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { NamiRecScreen } from "./screens/NamiRecScreen";
+import { ArtistFeatureScreen } from "./screens/ArtistFeatureScreen";
+import { ScrobblingScreen } from "./screens/ScrobblingScreen";
+import { MarucastScreen } from "./screens/MarucastScreen";
+import { LocalScreen } from "./screens/LocalScreen";
+import { ReceiverScreen } from "./screens/ReceiverScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { fetchLastfmProfile } from "./utils/lastfmApi";
 import { invoke } from "@tauri-apps/api/core";
-import { Menu, Heart, Radio, Cast } from "lucide-react";
+import { Menu, Heart, Cast } from "lucide-react";
 
 export function App() {
-  const [currentScreen, setCurrentScreen] = useState<NavigationScreen>(NavigationScreen.DISCOVERY);
+  const [selectedScreen, setSelectedScreen] = useState<NavigationScreen>(NavigationScreen.DISCOVERY);
+  const [previousScreen, setPreviousScreen] = useState<NavigationScreen>(NavigationScreen.DISCOVERY);
+  const [selectedArtistDetail, setSelectedArtistDetail] = useState<string>("GUMI");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [username, setUsername] = useState("Maru-Chan");
+
+  const [username, setUsername] = useState("JmDemisana");
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
-  const [selectedSongDetail, setSelectedSongDetail] = useState<{
-    title: string;
-    artist: string;
-    album?: string;
-    artworkUrl?: string | null;
-  } | null>(null);
+  const [selectedSongDetail, setSelectedSongDetail] = useState<SongDetailState | null>(null);
 
   const [mediaState, setMediaState] = useState<MediaState>({
     title: null,
@@ -37,7 +39,6 @@ export function App() {
     artwork_base64: null,
   });
 
-  // Poll Windows GSMTC Media State
   const pollMedia = async () => {
     try {
       const state = await invoke<MediaState>("get_media_state");
@@ -45,7 +46,7 @@ export function App() {
         setMediaState(state);
       }
     } catch (e) {
-      // Background poll silently
+      // background poll silently
     }
   };
 
@@ -61,11 +62,15 @@ export function App() {
 
   const screenTitles: Record<NavigationScreen, string> = {
     [NavigationScreen.DISCOVERY]: "Discovery",
-    [NavigationScreen.SCROBBLING]: "Scrobbler",
-    [NavigationScreen.MARUCAST]: "Marucast",
+    [NavigationScreen.SEARCH]: "Search",
     [NavigationScreen.PROFILE]: "Profile",
     [NavigationScreen.NAMIREC]: "NamiRec",
-    [NavigationScreen.SETTINGS]: "Settings",
+    [NavigationScreen.ARTIST_DETAIL]: "Artist Feature",
+    [NavigationScreen.MARUCAST]: "Marucast",
+    [NavigationScreen.SCROBBLING]: "Scrobbler",
+    [NavigationScreen.LOCAL]: "Local Monitor",
+    [NavigationScreen.RECEIVER]: "Receiver",
+    [NavigationScreen.COMMON]: "Settings",
   };
 
   return (
@@ -75,135 +80,180 @@ export function App() {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: "linear-gradient(180deg, #0f172a 0%, #070a13 60%, #030508 100%)",
-        color: "#fafcff",
+        background: "linear-gradient(180deg, #211734 0%, #100c19 60%, #050507 100%)",
+        color: "#f4f4f9fa",
         position: "relative",
         overflow: "hidden",
       }}
     >
-      {/* 1. Custom Faux Windows 11 Title Bar with Monitor Controls */}
+      {/* 1. Custom Faux Windows 11 Title Bar with Monitor Movement */}
       <TitleBar title="MAudio" iconSrc="/icon.png" />
 
-      {/* 2. Top App Bar (1-to-1 matching Android MAudio TopAppBar) */}
-      <div
-        style={{
-          height: "56px",
-          padding: "0 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          background: "linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 14, 26, 0.4) 100%)",
-          backdropFilter: "blur(16px)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
-          zIndex: 40,
-        }}
-      >
-        {/* Navigation Icon (Hamburger Menu) */}
-        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-          <button
-            onClick={() => setIsDrawerOpen(true)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#fafcff",
-              cursor: "pointer",
-              padding: "8px",
-              borderRadius: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Menu size={22} />
-          </button>
-
-          {/* Screen Title with Heart Icon */}
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div
+      {/* 2. Top App Bar (1-to-1 matching Kotlin TopAppBar) */}
+      {selectedScreen !== NavigationScreen.ARTIST_DETAIL && (
+        <div
+          style={{
+            height: "56px",
+            padding: "0 18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "linear-gradient(180deg, rgba(33, 23, 52, 0.95) 0%, transparent 100%)",
+            backdropFilter: "blur(14px)",
+            zIndex: 40,
+          }}
+        >
+          {/* Navigation Icon (Hamburger Menu) */}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <button
+              onClick={() => setIsDrawerOpen(true)}
               style={{
-                width: "24px",
-                height: "24px",
+                background: "transparent",
+                border: "none",
+                color: "#f4f4f9fa",
+                cursor: "pointer",
+                padding: "8px",
+                borderRadius: "8px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Heart size={20} fill="#70a5ff" color="#70a5ff" />
+              <Menu size={22} />
+            </button>
+
+            {/* ic_maru_heart + selectedScreen.title */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Heart size={20} fill="#70a5ff" color="#70a5ff" />
+              </div>
+              <span
+                style={{
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  letterSpacing: "0.5px",
+                  color: "#f4f4f9fa",
+                }}
+              >
+                {screenTitles[selectedScreen]}
+              </span>
             </div>
-            <span
-              style={{
-                fontSize: "18px",
-                fontWeight: 800,
-                letterSpacing: "0.5px",
-                color: "#fafcff",
-              }}
-            >
-              {screenTitles[currentScreen]}
-            </span>
           </div>
+
+          {/* Action: Podcasts / Marucast Button */}
+          <button
+            onClick={() => setSelectedScreen(NavigationScreen.MARUCAST)}
+            style={{
+              background: "transparent",
+              border: "none",
+              borderRadius: "50%",
+              width: "38px",
+              height: "38px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: selectedScreen === NavigationScreen.MARUCAST ? "var(--maru-accent-pink)" : "rgba(235, 235, 245, 0.7)",
+              cursor: "pointer",
+              position: "relative",
+            }}
+          >
+            <Cast size={20} />
+            {mediaState.is_playing && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "6px",
+                  right: "6px",
+                  width: "7px",
+                  height: "7px",
+                  borderRadius: "50%",
+                  backgroundColor: "#4ade80",
+                  boxShadow: "0 0 6px #4ade80",
+                }}
+              />
+            )}
+          </button>
         </div>
+      )}
 
-        {/* Action: Marucast Icon Button with active badge */}
-        <button
-          onClick={() => setCurrentScreen(NavigationScreen.MARUCAST)}
-          style={{
-            background: currentScreen === NavigationScreen.MARUCAST ? "rgba(255, 113, 162, 0.2)" : "transparent",
-            border: currentScreen === NavigationScreen.MARUCAST ? "1px solid rgba(255, 113, 162, 0.5)" : "none",
-            borderRadius: "50%",
-            width: "38px",
-            height: "38px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: currentScreen === NavigationScreen.MARUCAST ? "var(--maru-accent-pink)" : "rgba(255, 255, 255, 0.6)",
-            cursor: "pointer",
-            position: "relative",
-          }}
-        >
-          <Cast size={20} />
-          {mediaState.is_playing && (
-            <div
-              style={{
-                position: "absolute",
-                top: "6px",
-                right: "6px",
-                width: "7px",
-                height: "7px",
-                borderRadius: "50%",
-                backgroundColor: "#4ade80",
-                boxShadow: "0 0 6px #4ade80",
-              }}
-            />
-          )}
-        </button>
-      </div>
-
-      {/* 3. Main Screen Viewport (Animated Content) */}
+      {/* 3. Screen Viewport */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
-        {currentScreen === NavigationScreen.DISCOVERY && (
+        {selectedScreen === NavigationScreen.DISCOVERY && (
           <DiscoveryScreen
             username={username}
-            onOpenProfile={() => setCurrentScreen(NavigationScreen.PROFILE)}
+            onSongClick={(item: RecommendedTrackItem) =>
+              setSelectedSongDetail({
+                title: item.title,
+                artist: item.artist,
+                album: item.album,
+                artworkUrl: item.effectiveArtworkUrl,
+              })
+            }
           />
         )}
-        {currentScreen === NavigationScreen.SCROBBLING && (
-          <ScrobblingScreen />
+
+        {selectedScreen === NavigationScreen.SEARCH && (
+          <SearchScreen
+            onSongClick={(song) => setSelectedSongDetail(song)}
+            onOpenProfile={(u) => {
+              setUsername(u);
+              setSelectedScreen(NavigationScreen.PROFILE);
+            }}
+            onOpenArtist={(art) => {
+              setPreviousScreen(selectedScreen);
+              setSelectedArtistDetail(art);
+              setSelectedScreen(NavigationScreen.ARTIST_DETAIL);
+            }}
+          />
         )}
-        {currentScreen === NavigationScreen.MARUCAST && (
-          <MarucastScreen />
+
+        {selectedScreen === NavigationScreen.PROFILE && (
+          <ProfileScreen username={username} onBack={() => setSelectedScreen(NavigationScreen.DISCOVERY)} />
         )}
-        {currentScreen === NavigationScreen.PROFILE && (
-          <ProfileScreen username={username} onBack={() => setCurrentScreen(NavigationScreen.DISCOVERY)} />
-        )}
-        {currentScreen === NavigationScreen.NAMIREC && (
+
+        {selectedScreen === NavigationScreen.NAMIREC && (
           <NamiRecScreen username={username} />
         )}
-        {currentScreen === NavigationScreen.SETTINGS && (
+
+        {selectedScreen === NavigationScreen.ARTIST_DETAIL && (
+          <ArtistFeatureScreen
+            artistName={selectedArtistDetail}
+            onBack={() => setSelectedScreen(previousScreen)}
+            onSelectSong={(s) => setSelectedSongDetail(s)}
+            onSelectArtist={(art) => setSelectedArtistDetail(art)}
+          />
+        )}
+
+        {selectedScreen === NavigationScreen.MARUCAST && (
+          <MarucastScreen />
+        )}
+
+        {selectedScreen === NavigationScreen.SCROBBLING && (
+          <ScrobblingScreen />
+        )}
+
+        {selectedScreen === NavigationScreen.LOCAL && (
+          <LocalScreen mediaState={mediaState} />
+        )}
+
+        {selectedScreen === NavigationScreen.RECEIVER && (
+          <ReceiverScreen lastfmUsername={username} />
+        )}
+
+        {selectedScreen === NavigationScreen.COMMON && (
           <SettingsScreen username={username} onSaveUsername={setUsername} />
         )}
       </div>
 
-      {/* 4. Notification Mirror Persistent Bottom Bar (Only when playing!) */}
+      {/* 4. Notification Mirror Persistent Bottom Bar */}
       <NotificationMirrorBottomBar
         mediaState={mediaState}
         onClick={() => {
@@ -218,22 +268,25 @@ export function App() {
         }}
       />
 
-      {/* 5. Slide-Out Glass Navigation Drawer (The sole menu) */}
+      {/* 5. Glass Navigation Drawer (The Canonical Menu) */}
       <NavigationDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        currentScreen={currentScreen}
+        currentScreen={selectedScreen}
         onSelectScreen={(s) => {
-          setCurrentScreen(s);
+          setSelectedScreen(s);
           setIsDrawerOpen(false);
         }}
+        username={username}
         profile={profile}
+        serviceRunning={mediaState.is_playing}
       />
 
-      {/* 6. Song Detail Modal / Bottom Sheet */}
+      {/* 6. Song Detail Modal */}
       <SongDetailModal
         song={selectedSongDetail}
         onDismiss={() => setSelectedSongDetail(null)}
+        onSelectSong={(t, a) => setSelectedSongDetail({ title: t, artist: a })}
       />
     </div>
   );

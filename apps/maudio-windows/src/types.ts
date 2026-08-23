@@ -1,10 +1,19 @@
+export enum NavigationGroup {
+  RECOMMENDATION_ENGINE = "RECOMMENDATION ENGINE",
+  CORE_FUNCTIONALITY = "CORE FUNCTIONALITY",
+}
+
 export enum NavigationScreen {
   DISCOVERY = "DISCOVERY",
-  SCROBBLING = "SCROBBLING",
-  MARUCAST = "MARUCAST",
+  SEARCH = "SEARCH",
   PROFILE = "PROFILE",
   NAMIREC = "NAMIREC",
-  SETTINGS = "SETTINGS",
+  ARTIST_DETAIL = "ARTIST_DETAIL",
+  MARUCAST = "MARUCAST",
+  SCROBBLING = "SCROBBLING",
+  LOCAL = "LOCAL",
+  RECEIVER = "RECEIVER",
+  COMMON = "COMMON",
 }
 
 export type TimePeriod = "7D" | "1M" | "3M" | "1Y" | "ALL";
@@ -39,7 +48,22 @@ export interface MediaState {
   artwork_base64: string | null;
 }
 
-export interface LyricLine {
-  timeMs: number;
-  text: string;
+export interface RecommendedTrackItem {
+  title: string;
+  artist: string;
+  album?: string;
+  reason?: string;
+  artworkUrl?: string;
+  effectiveArtworkUrl?: string;
+  appleMusicUrl?: string;
+}
+
+export interface SongDetailState {
+  title: string;
+  artist: string;
+  album?: string;
+  artworkUrl?: string | null;
+  appleMusicUrl?: string | null;
+  genre?: string | null;
+  releaseDate?: string | null;
 }

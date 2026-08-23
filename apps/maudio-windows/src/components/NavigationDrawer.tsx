@@ -1,14 +1,29 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { NavigationScreen, LastfmProfile } from "../types";
-import { Compass, Radio, Cast, User, Disc, Settings, Heart, X, Sparkles } from "lucide-react";
+import { NavigationScreen, NavigationGroup, LastfmProfile } from "../types";
+import {
+  Sparkles,
+  Search,
+  User,
+  Stars,
+  Mic,
+  Cast,
+  CloudUpload,
+  Activity,
+  Radio,
+  Settings,
+  Heart,
+  X,
+} from "lucide-react";
 
 interface NavigationDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   currentScreen: NavigationScreen;
   onSelectScreen: (screen: NavigationScreen) => void;
+  username: string;
   profile: LastfmProfile | null;
+  serviceRunning: boolean;
 }
 
 export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
@@ -16,50 +31,67 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
   onClose,
   currentScreen,
   onSelectScreen,
+  username,
   profile,
+  serviceRunning,
 }) => {
-  const navItems = [
+  const recommendationScreens = [
     {
-      id: NavigationScreen.DISCOVERY,
-      label: "Discovery",
-      desc: "Music search & trending tracks",
-      icon: Compass,
-      color: "#ff71a2",
+      screen: NavigationScreen.DISCOVERY,
+      title: "Discovery",
+      subtitle: "Personalized Track Feed",
+      icon: Sparkles,
     },
     {
-      id: NavigationScreen.SCROBBLING,
-      label: "Scrobbling HUD",
-      desc: "Live Windows media & neon EQ",
-      icon: Radio,
-      color: "#70a5ff",
+      screen: NavigationScreen.SEARCH,
+      title: "Search",
+      subtitle: "Tracks, Artists & Profiles",
+      icon: Search,
     },
     {
-      id: NavigationScreen.MARUCAST,
-      label: "Marucast Receiver",
-      desc: "Stream lossless audio from phone",
-      icon: Cast,
-      color: "#a78bfa",
-    },
-    {
-      id: NavigationScreen.PROFILE,
-      label: "Listener Profile",
-      desc: "Stats, history & top artists",
+      screen: NavigationScreen.PROFILE,
+      title: "Profile",
+      subtitle: "Scrobble Stats & Charts",
       icon: User,
-      color: "#38bdf8",
     },
     {
-      id: NavigationScreen.NAMIREC,
-      label: "NamiRec Studio",
-      desc: "Monthly cassette retrospectives",
-      icon: Disc,
-      color: "#f472b6",
+      screen: NavigationScreen.NAMIREC,
+      title: "NamiRec",
+      subtitle: "Monthly Musical Recap",
+      icon: Stars,
+    },
+  ];
+
+  const coreScreens = [
+    {
+      screen: NavigationScreen.MARUCAST,
+      title: "Marucast",
+      subtitle: "Lossless Wi-Fi Receiver",
+      icon: Cast,
     },
     {
-      id: NavigationScreen.SETTINGS,
-      label: "Settings",
-      desc: "Accounts & preferences",
+      screen: NavigationScreen.SCROBBLING,
+      title: "Scrobbler",
+      subtitle: "Accounts & Filters",
+      icon: CloudUpload,
+    },
+    {
+      screen: NavigationScreen.LOCAL,
+      title: "Local Monitor",
+      subtitle: "Media Controller",
+      icon: Activity,
+    },
+    {
+      screen: NavigationScreen.RECEIVER,
+      title: "Receiver",
+      subtitle: "Cross-device Sync",
+      icon: Radio,
+    },
+    {
+      screen: NavigationScreen.COMMON,
+      title: "Settings",
+      subtitle: "Layout & Player Options",
       icon: Settings,
-      color: "#94a3b8",
     },
   ];
 
@@ -79,13 +111,13 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               left: 0,
               right: 0,
               bottom: 0,
-              background: "rgba(0, 0, 0, 0.6)",
+              background: "rgba(0, 0, 0, 0.65)",
               backdropFilter: "blur(8px)",
               zIndex: 100,
             }}
           />
 
-          {/* Drawer Panel */}
+          {/* Modal Drawer Sheet (matching 300dp Kotlin Sheet) */}
           <motion.div
             initial={{ x: "-100%" }}
             animate={{ x: 0 }}
@@ -96,149 +128,126 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               top: 0,
               left: 0,
               bottom: 0,
-              width: "320px",
-              background: "linear-gradient(180deg, #0e1322 0%, #070a13 100%)",
-              borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+              width: "300px",
+              background: "linear-gradient(180deg, #1e1433 0%, #100b1d 50%, #07050a 100%)",
+              borderRight: "1px solid rgba(255, 255, 255, 0.094)",
+              borderRadius: "0 16px 16px 0",
               zIndex: 101,
               display: "flex",
               flexDirection: "column",
-              boxShadow: "12px 0 36px rgba(0,0,0,0.6)",
+              boxShadow: "16px 0 40px rgba(0, 0, 0, 0.7)",
+              overflowY: "auto",
+              padding: "20px",
+              gap: "14px",
             }}
           >
-            {/* Header / Profile Card */}
-            <div
-              style={{
-                padding: "24px 20px 20px",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-                display: "flex",
-                flexDirection: "column",
-                gap: "14px",
-                position: "relative",
-              }}
-            >
+            {/* 1. Brand & User Profile in Drawer */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Heart size={24} fill="#70a5ff" color="#70a5ff" />
+                </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 800,
+                      color: "#f4f4f9fa",
+                      letterSpacing: "1.2px",
+                    }}
+                  >
+                    MAUDIO
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--maru-accent-pink)",
+                      fontWeight: 600,
+                      marginTop: "1px",
+                    }}
+                  >
+                    {username ? `Logged in as @${username}` : "Guest Mode"}
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={onClose}
                 style={{
-                  position: "absolute",
-                  top: "18px",
-                  right: "16px",
                   background: "transparent",
                   border: "none",
-                  color: "rgba(255, 255, 255, 0.6)",
+                  color: "rgba(255, 255, 255, 0.5)",
                   cursor: "pointer",
                   padding: "4px",
-                  borderRadius: "6px",
                 }}
               >
                 <X size={18} />
               </button>
-
-              <div
-                onClick={() => {
-                  onSelectScreen(NavigationScreen.PROFILE);
-                  onClose();
-                }}
-                style={{ display: "flex", alignItems: "center", gap: "14px", cursor: "pointer" }}
-              >
-                <div
-                  style={{
-                    position: "relative",
-                    width: "52px",
-                    height: "52px",
-                    borderRadius: "50%",
-                    padding: "2.5px",
-                    background: "linear-gradient(135deg, #ff71a2, #70a5ff)",
-                    boxShadow: "0 0 18px rgba(255, 113, 162, 0.45)",
-                  }}
-                >
-                  <img
-                    src={profile?.avatarUrl || "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png"}
-                    alt="Avatar"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      background: "#161b2e",
-                    }}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png";
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: "-2px",
-                      right: "-2px",
-                      width: "16px",
-                      height: "16px",
-                      borderRadius: "50%",
-                      backgroundColor: "#4ade80",
-                      border: "2px solid #0e1322",
-                    }}
-                  />
-                </div>
-                <div style={{ overflow: "hidden" }}>
-                  <div style={{ fontSize: "15px", fontWeight: 800, color: "#fafcff" }}>
-                    {profile?.username || "Maru-Chan"}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "var(--maru-accent-pink)", fontWeight: 700, marginTop: "2px" }}>
-                    {profile ? `${profile.totalScrobbles.toLocaleString()} scrobbles` : "Connecting..."}
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Nav Menu */}
-            <div style={{ flex: 1, padding: "16px 12px", display: "flex", flexDirection: "column", gap: "6px", overflowY: "auto" }}>
-              {navItems.map((item) => {
+            <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.094)", width: "100%" }} />
+
+            {/* 2. GROUP 1: RECOMMENDATION ENGINE */}
+            <div
+              style={{
+                fontSize: "10px",
+                fontWeight: 800,
+                color: "var(--maru-accent-pink)",
+                letterSpacing: "1px",
+                paddingLeft: "4px",
+              }}
+            >
+              {NavigationGroup.RECOMMENDATION_ENGINE}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {recommendationScreens.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentScreen === item.id;
+                const isSelected = currentScreen === item.screen;
                 return (
                   <button
-                    key={item.id}
+                    key={item.screen}
                     onClick={() => {
-                      onSelectScreen(item.id);
+                      onSelectScreen(item.screen);
                       onClose();
                     }}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: "14px",
-                      padding: "12px 14px",
-                      borderRadius: "12px",
-                      border: isActive
-                        ? `1px solid ${item.color}40`
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: isSelected
+                        ? "1px solid rgba(232, 93, 159, 0.6)"
                         : "1px solid transparent",
-                      background: isActive
-                        ? `${item.color}15`
+                      background: isSelected
+                        ? "rgba(232, 93, 159, 0.16)"
                         : "transparent",
-                      color: isActive ? "#fafcff" : "rgba(245, 248, 255, 0.7)",
+                      color: isSelected ? "#f4f4f9fa" : "rgba(235, 235, 245, 0.72)",
                       cursor: "pointer",
                       textAlign: "left",
                       width: "100%",
-                      transition: "all 140ms ease",
+                      transition: "all 120ms ease",
                     }}
                   >
-                    <div
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "10px",
-                        background: isActive ? `${item.color}25` : "rgba(255, 255, 255, 0.05)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: item.color,
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Icon size={19} />
-                    </div>
+                    <Icon
+                      size={20}
+                      color={isSelected ? "var(--maru-accent-pink)" : "rgba(235, 235, 245, 0.72)"}
+                    />
                     <div>
-                      <div style={{ fontSize: "13.5px", fontWeight: 700 }}>{item.label}</div>
-                      <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)", marginTop: "1px" }}>
-                        {item.desc}
+                      <div style={{ fontSize: "13.5px", fontWeight: isSelected ? 700 : 500 }}>
+                        {item.title}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "rgba(235, 235, 245, 0.45)", marginTop: "1px" }}>
+                        {item.subtitle}
                       </div>
                     </div>
                   </button>
@@ -246,23 +255,114 @@ export const NavigationDrawer: React.FC<NavigationDrawerProps> = ({
               })}
             </div>
 
-            {/* Footer */}
+            {/* 3. GROUP 2: CORE FUNCTIONALITY */}
             <div
               style={{
-                padding: "16px 20px",
-                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                fontSize: "11.5px",
-                color: "rgba(255, 255, 255, 0.4)",
+                fontSize: "10px",
+                fontWeight: 800,
+                color: "var(--maru-accent-blue)",
+                letterSpacing: "1px",
+                paddingLeft: "4px",
+                marginTop: "6px",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <Heart size={14} color="#70a5ff" fill="#70a5ff" />
-                <span style={{ fontWeight: 600 }}>MAudio for Windows</span>
-              </div>
-              <span style={{ opacity: 0.6, fontWeight: 600 }}>v1.0.0</span>
+              {NavigationGroup.CORE_FUNCTIONALITY}
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {coreScreens.map((item) => {
+                const Icon = item.icon;
+                const isSelected = currentScreen === item.screen;
+                return (
+                  <button
+                    key={item.screen}
+                    onClick={() => {
+                      onSelectScreen(item.screen);
+                      onClose();
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "14px",
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: isSelected
+                        ? "1px solid rgba(232, 93, 159, 0.6)"
+                        : "1px solid transparent",
+                      background: isSelected
+                        ? "rgba(232, 93, 159, 0.16)"
+                        : "transparent",
+                      color: isSelected ? "#f4f4f9fa" : "rgba(235, 235, 245, 0.72)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      width: "100%",
+                      transition: "all 120ms ease",
+                    }}
+                  >
+                    <Icon
+                      size={20}
+                      color={isSelected ? "var(--maru-accent-pink)" : "rgba(235, 235, 245, 0.72)"}
+                    />
+                    <div>
+                      <div style={{ fontSize: "13.5px", fontWeight: isSelected ? 700 : 500 }}>
+                        {item.title}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "rgba(235, 235, 245, 0.45)", marginTop: "1px" }}>
+                        {item.subtitle}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 4. Bottom Status Pill */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "8px 14px",
+                borderRadius: "24px",
+                background: serviceRunning ? "rgba(74, 222, 128, 0.12)" : "rgba(255, 255, 255, 0.1)",
+                border: serviceRunning
+                  ? "1px solid rgba(74, 222, 128, 0.4)"
+                  : "1px solid rgba(255, 255, 255, 0.094)",
+                marginTop: "10px",
+              }}
+            >
+              <div
+                style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: serviceRunning ? "#4ade80" : "rgba(235, 235, 245, 0.5)",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  color: serviceRunning ? "#4ade80" : "rgba(235, 235, 245, 0.72)",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                {serviceRunning ? "BACKGROUND SERVICE ACTIVE" : "SERVICE IDLE"}
+              </span>
+            </div>
+
+            {/* 5. Footer Signature */}
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "11px",
+                color: "rgba(235, 235, 245, 0.65)",
+                fontWeight: 500,
+                letterSpacing: "0.5px",
+                padding: "8px 0 4px",
+              }}
+            >
+              with &lt;3, Maru &amp; Nanami
             </div>
           </motion.div>
         </>
