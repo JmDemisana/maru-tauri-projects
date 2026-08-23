@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { TitleBar } from "@maru/ui";
-import { NavigationScreen, LastfmProfile } from "./types";
+import { NavigationScreen, LastfmProfile, MediaState } from "./types";
 import { NavigationDrawer } from "./components/NavigationDrawer";
-import { BottomNav } from "./components/BottomNav";
+import { NotificationMirrorBottomBar } from "./components/NotificationMirrorBottomBar";
+import { SongDetailModal } from "./components/SongDetailModal";
 import { DiscoveryScreen } from "./screens/DiscoveryScreen";
 import { ScrobblingScreen } from "./screens/ScrobblingScreen";
 import { MarucastScreen } from "./screens/MarucastScreen";
@@ -10,17 +11,62 @@ import { ProfileScreen } from "./screens/ProfileScreen";
 import { NamiRecScreen } from "./screens/NamiRecScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { fetchLastfmProfile } from "./utils/lastfmApi";
-import { Menu, Heart } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { Menu, Heart, Radio, Cast } from "lucide-react";
 
 export function App() {
   const [currentScreen, setCurrentScreen] = useState<NavigationScreen>(NavigationScreen.DISCOVERY);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [username, setUsername] = useState("Maru-Chan");
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
+  const [selectedSongDetail, setSelectedSongDetail] = useState<{
+    title: string;
+    artist: string;
+    album?: string;
+    artworkUrl?: string | null;
+  } | null>(null);
+
+  const [mediaState, setMediaState] = useState<MediaState>({
+    title: null,
+    artist: null,
+    album: null,
+    app_name: null,
+    is_playing: false,
+    position_ms: null,
+    duration_ms: null,
+    artwork_base64: null,
+  });
+
+  // Poll Windows GSMTC Media State
+  const pollMedia = async () => {
+    try {
+      const state = await invoke<MediaState>("get_media_state");
+      if (state) {
+        setMediaState(state);
+      }
+    } catch (e) {
+      // Background poll silently
+    }
+  };
+
+  useEffect(() => {
+    pollMedia();
+    const timer = setInterval(pollMedia, 1500);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     fetchLastfmProfile(username).then(setProfile).catch(console.error);
   }, [username]);
+
+  const screenTitles: Record<NavigationScreen, string> = {
+    [NavigationScreen.DISCOVERY]: "Discovery",
+    [NavigationScreen.SCROBBLING]: "Scrobbler",
+    [NavigationScreen.MARUCAST]: "Marucast",
+    [NavigationScreen.PROFILE]: "Profile",
+    [NavigationScreen.NAMIREC]: "NamiRec",
+    [NavigationScreen.SETTINGS]: "Settings",
+  };
 
   return (
     <div
@@ -29,144 +75,116 @@ export function App() {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: "linear-gradient(180deg, #070a13 0%, #0c1020 100%)",
+        background: "linear-gradient(180deg, #0f172a 0%, #070a13 60%, #030508 100%)",
         color: "#fafcff",
         position: "relative",
+        overflow: "hidden",
       }}
     >
-      {/* Custom Faux Windows 11 Title Bar with Monitor Controls */}
+      {/* 1. Custom Faux Windows 11 Title Bar with Monitor Controls */}
       <TitleBar title="MAudio" iconSrc="/icon.png" />
 
-      {/* Main App Desktop Header */}
+      {/* 2. Top App Bar (1-to-1 matching Android MAudio TopAppBar) */}
       <div
         style={{
-          height: "58px",
-          padding: "0 24px",
+          height: "56px",
+          padding: "0 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-          background: "rgba(10, 14, 26, 0.75)",
-          backdropFilter: "blur(18px)",
+          background: "linear-gradient(180deg, rgba(15, 23, 42, 0.95) 0%, rgba(10, 14, 26, 0.4) 100%)",
+          backdropFilter: "blur(16px)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
           zIndex: 40,
         }}
       >
-        {/* Left: Drawer Toggle & Branding */}
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        {/* Navigation Icon (Hamburger Menu) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <button
             onClick={() => setIsDrawerOpen(true)}
             style={{
-              background: "rgba(255, 255, 255, 0.06)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: "10px",
-              width: "38px",
-              height: "38px",
+              background: "transparent",
+              border: "none",
+              color: "#fafcff",
+              cursor: "pointer",
+              padding: "8px",
+              borderRadius: "8px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#fafcff",
-              cursor: "pointer",
             }}
           >
-            <Menu size={19} />
+            <Menu size={22} />
           </button>
 
+          {/* Screen Title with Heart Icon */}
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <div
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #70a5ff, #ff71a2)",
+                width: "24px",
+                height: "24px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                boxShadow: "0 0 12px rgba(112, 165, 255, 0.55)",
               }}
             >
-              <Heart size={15} fill="#ffffff" color="#ffffff" />
+              <Heart size={20} fill="#70a5ff" color="#70a5ff" />
             </div>
-            <span style={{ fontSize: "16px", fontWeight: 900, letterSpacing: "0.5px" }}>
-              MAudio
-            </span>
             <span
               style={{
-                fontSize: "10.5px",
+                fontSize: "18px",
                 fontWeight: 800,
-                padding: "2px 8px",
-                borderRadius: "999px",
-                background: "rgba(74, 222, 128, 0.15)",
-                color: "var(--maru-success)",
-                border: "1px solid rgba(74, 222, 128, 0.3)",
-                letterSpacing: "0.4px",
+                letterSpacing: "0.5px",
+                color: "#fafcff",
               }}
             >
-              ONLINE & SCROBBLING
+              {screenTitles[currentScreen]}
             </span>
           </div>
         </div>
 
-        {/* Right: Quick Tab Switcher & Avatar */}
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div style={{ display: "flex", gap: "6px", background: "rgba(255, 255, 255, 0.05)", padding: "3px", borderRadius: "12px" }}>
-            {[
-              { id: NavigationScreen.DISCOVERY, label: "Discovery" },
-              { id: NavigationScreen.SCROBBLING, label: "Scrobbler" },
-              { id: NavigationScreen.MARUCAST, label: "Marucast" },
-              { id: NavigationScreen.NAMIREC, label: "NamiRec" },
-              { id: NavigationScreen.SETTINGS, label: "Settings" },
-            ].map((tab) => {
-              const isActive = currentScreen === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setCurrentScreen(tab.id)}
-                  style={{
-                    background: isActive ? "var(--maru-accent-pink)" : "transparent",
-                    color: isActive ? "#070a13" : "rgba(255, 255, 255, 0.7)",
-                    fontWeight: isActive ? 800 : 600,
-                    fontSize: "12px",
-                    border: "none",
-                    borderRadius: "9px",
-                    padding: "6px 14px",
-                    cursor: "pointer",
-                    transition: "all 140ms ease",
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            onClick={() => setCurrentScreen(NavigationScreen.PROFILE)}
-            style={{
-              width: "38px",
-              height: "38px",
-              borderRadius: "50%",
-              padding: "2px",
-              background: "linear-gradient(135deg, var(--maru-accent-pink), var(--maru-accent-blue))",
-              cursor: "pointer",
-              boxShadow: "0 0 12px rgba(255, 113, 162, 0.45)",
-            }}
-          >
-            <img
-              src={profile?.avatarUrl || "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png"}
-              alt="Profile"
-              style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png";
+        {/* Action: Marucast Icon Button with active badge */}
+        <button
+          onClick={() => setCurrentScreen(NavigationScreen.MARUCAST)}
+          style={{
+            background: currentScreen === NavigationScreen.MARUCAST ? "rgba(255, 113, 162, 0.2)" : "transparent",
+            border: currentScreen === NavigationScreen.MARUCAST ? "1px solid rgba(255, 113, 162, 0.5)" : "none",
+            borderRadius: "50%",
+            width: "38px",
+            height: "38px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: currentScreen === NavigationScreen.MARUCAST ? "var(--maru-accent-pink)" : "rgba(255, 255, 255, 0.6)",
+            cursor: "pointer",
+            position: "relative",
+          }}
+        >
+          <Cast size={20} />
+          {mediaState.is_playing && (
+            <div
+              style={{
+                position: "absolute",
+                top: "6px",
+                right: "6px",
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                backgroundColor: "#4ade80",
+                boxShadow: "0 0 6px #4ade80",
               }}
             />
-          </div>
-        </div>
+          )}
+        </button>
       </div>
 
-      {/* Main Viewport Body */}
+      {/* 3. Main Screen Viewport (Animated Content) */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
         {currentScreen === NavigationScreen.DISCOVERY && (
-          <DiscoveryScreen username={username} onOpenProfile={() => setCurrentScreen(NavigationScreen.PROFILE)} />
+          <DiscoveryScreen
+            username={username}
+            onOpenProfile={() => setCurrentScreen(NavigationScreen.PROFILE)}
+          />
         )}
         {currentScreen === NavigationScreen.SCROBBLING && (
           <ScrobblingScreen />
@@ -185,16 +203,37 @@ export function App() {
         )}
       </div>
 
-      {/* Fixed Bottom Dock Bar */}
-      <BottomNav currentScreen={currentScreen} onSelectScreen={setCurrentScreen} />
+      {/* 4. Notification Mirror Persistent Bottom Bar (Only when playing!) */}
+      <NotificationMirrorBottomBar
+        mediaState={mediaState}
+        onClick={() => {
+          if (mediaState.title && mediaState.artist) {
+            setSelectedSongDetail({
+              title: mediaState.title,
+              artist: mediaState.artist,
+              album: mediaState.album || undefined,
+              artworkUrl: mediaState.artwork_base64,
+            });
+          }
+        }}
+      />
 
-      {/* Slide-out Navigation Drawer */}
+      {/* 5. Slide-Out Glass Navigation Drawer (The sole menu) */}
       <NavigationDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         currentScreen={currentScreen}
-        onSelectScreen={setCurrentScreen}
+        onSelectScreen={(s) => {
+          setCurrentScreen(s);
+          setIsDrawerOpen(false);
+        }}
         profile={profile}
+      />
+
+      {/* 6. Song Detail Modal / Bottom Sheet */}
+      <SongDetailModal
+        song={selectedSongDetail}
+        onDismiss={() => setSelectedSongDetail(null)}
       />
     </div>
   );
