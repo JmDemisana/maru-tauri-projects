@@ -16,6 +16,8 @@ Are you just looking to use the app, or are you building it from source? Pick yo
 1. Head over to the **[Releases](https://github.com/JmDemisana/maru-tauri-projects/releases)** tab.
 2. Download the latest installer or executable for your app:
    - **Monika Piano Maker**: `Monika-Piano-Maker_x.x.x_x64-setup.exe` (or standalone `.exe`)
+   - **MAudio Desktop**: `MAudio_x.x.x_x64-setup.exe`
+   - **Marucast for Gaming**: `Marucast.for.Gaming_x.x.x_x64-setup.exe`
    - **Nami Agent Desktop**: `nami-agent_x.x.x_x64-setup.exe`
    - **Files Companion**: `files-companion_x.x.x_x64.exe`
 3. Run the installer or open the executable and you're good to go!
@@ -84,6 +86,26 @@ If you don't have Node.js installed yet, grab it with one command:
   if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:files
   ```
 
+##### 🎧 Build MAudio Desktop:
+- **macOS / Linux (Bash / Zsh)**:
+  ```bash
+  (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:maudio
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:maudio
+  ```
+
+##### 🎮 Build Marucast for Gaming:
+- **macOS / Linux (Bash / Zsh)**:
+  ```bash
+  (command -v cargo >/dev/null 2>&1 || (curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$HOME/.cargo/env")) && npx --yes pnpm install && npx --yes pnpm build:marucast
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) { winget install --id Rustlang.Rustup -e --silent ; $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User") } ; npx --yes pnpm install ; npx --yes pnpm build:marucast
+  ```
+
 *(Because this repo uses a unified Cargo workspace, your compiled binaries and bundle installers will land in the workspace root `target/release/` and `target/release/bundle/`!)*
 
 ---
@@ -113,6 +135,22 @@ This is the main desktop shell for Maru. It puts me (Nanami!) right in your desk
 
 A lightweight desktop companion designed to interface with the Notion-backed Files storage on the Maru website. It provides native filesystem drag-and-drop, quick file uploads, split 7z archives handling, and instant file previews directly from your desktop.
 
+### 🎧 [`apps/maudio-windows`](./apps/maudio-windows) — *MAudio Desktop*
+*Native Windows listener, scrobbler, karaoke, and Marucast receiver!*
+
+- 🎵 **Media Listener**: Reads Windows now-playing sessions and keeps a live desktop music dashboard.
+- 📡 **Marucast Receiver**: Receives lossless Wi-Fi audio, synced lyrics, and metadata from MAudio on Android.
+- 🎤 **Karaoke Mode**: Shows PC-synced lyrics and timing tools without duplicating phone-side playback controls.
+- ☁️ **Last.fm Scrobbler**: Keeps local listening and scrobbling flows in one native desktop app.
+
+### 🎮 [`apps/marucast-gaming`](./apps/marucast-gaming) — *Marucast for Gaming*
+*Android game and app hub launcher for low-latency desktop play!*
+
+- 🕹️ **ADB App Launcher**: Launches Android apps and games over wireless or USB ADB.
+- 🖥️ **Fullscreen Desktop Play**: Opens fixed borderless scrcpy sessions with high-bitrate HEVC streaming.
+- 🔊 **Flexible Audio Routing**: Choose host phone, PC, or dual audio routes depending on the session.
+- 🧹 **Task Tools**: Includes in-app recent task controls, app force stop, and uninstall actions.
+
 ---
 
 ## 🧩 Shared Crates & Packages
@@ -139,6 +177,12 @@ pnpm dev:nami
 
 # Run Files Companion in development mode
 pnpm dev:files
+
+# Run MAudio Desktop in development mode
+pnpm dev:maudio
+
+# Run Marucast for Gaming in development mode
+pnpm dev:marucast
 ```
 
 ---
@@ -147,6 +191,8 @@ pnpm dev:files
 
 Each desktop application is released independently using tag prefixes:
 - `monika-piano/vX.Y.Z` → Builds and attaches Windows `.msi` / `.exe` bundles for Monika Piano Maker
+- `maudio-windows/vX.Y.Z` → Builds and attaches Windows `.msi` / `.exe` bundles for MAudio Desktop
+- `marucast-gaming/vX.Y.Z` → Builds and attaches Windows `.msi` / `.exe` bundles for Marucast for Gaming
 - `nami-agent/vX.Y.Z` → Builds and attaches Windows `.msi` / `.exe` bundles for Nami Agent
 - `files-companion/vX.Y.Z` → Builds and releases Files Companion
 

@@ -1,6 +1,22 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn hide_command_window(command: &mut Command) -> &mut Command {
+    command.creation_flags(CREATE_NO_WINDOW)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_command_window(command: &mut Command) -> &mut Command {
+    command
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AdbDevice {
     pub serial: String,
@@ -149,8 +165,8 @@ pub fn get_friendly_app_name(package_name: &str) -> String {
 
 /// Executes an adb command with specified arguments
 pub fn run_adb(args: &[&str]) -> Result<String, String> {
-    let output = Command::new("adb")
-        .args(args)
+    let mut command = Command::new("adb");
+    let output = hide_command_window(command.args(args))
         .output()
         .map_err(|e| format!("Failed to execute adb: {}", e))?;
 

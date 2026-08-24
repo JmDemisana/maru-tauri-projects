@@ -17,8 +17,8 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { fetchLastfmProfile, fetchSessionFromToken } from "./utils/lastfmApi";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Heart, Cast, Sparkles } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Heart, Sparkles } from "lucide-react";
+import { AnimatePresence } from "framer-motion";
 
 export function App() {
   const [selectedScreen, setSelectedScreen] = useState<NavigationScreen>(NavigationScreen.DISCOVERY);
@@ -193,39 +193,6 @@ export function App() {
                 </span>
               </div>
 
-              {/* Action: Marucast Quick Toggle */}
-              <motion.button
-                whileHover={{ scale: 1.06 }}
-                whileTap={{ scale: 0.94 }}
-                onClick={() => setSelectedScreen(NavigationScreen.MARUCAST)}
-                style={{
-                  background: selectedScreen === NavigationScreen.MARUCAST ? "rgba(232, 93, 159, 0.2)" : "rgba(255, 255, 255, 0.08)",
-                  border: selectedScreen === NavigationScreen.MARUCAST ? "1px solid var(--maru-accent-pink)" : "1px solid rgba(255, 255, 255, 0.08)",
-                  borderRadius: "20px",
-                  padding: "6px 14px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  color: selectedScreen === NavigationScreen.MARUCAST ? "var(--maru-accent-pink)" : "#f4f4f9fa",
-                  cursor: "pointer",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                <Cast size={15} />
-                <span>Marucast</span>
-                {mediaState.is_playing && (
-                  <div
-                    style={{
-                      width: "6px",
-                      height: "6px",
-                      borderRadius: "50%",
-                      backgroundColor: "#4ade80",
-                      boxShadow: "0 0 6px #4ade80",
-                    }}
-                  />
-                )}
-              </motion.button>
             </div>
           )}
 

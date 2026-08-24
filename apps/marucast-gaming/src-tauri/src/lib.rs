@@ -6,6 +6,44 @@ use session::{AppSession, SessionManager};
 use std::sync::Mutex;
 use tauri::State;
 
+#[cfg(target_os = "windows")]
+fn fit_window_to_monitor_work_area(window: &tauri::WebviewWindow, x: i32, y: i32) {
+    use tauri::{PhysicalPosition, PhysicalSize};
+    use windows_sys::Win32::Foundation::{POINT, RECT};
+    use windows_sys::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+
+    unsafe {
+        let pt = POINT { x, y };
+        let hmon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+        if !hmon.is_null() {
+            let mut mi = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                rcMonitor: RECT {
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                },
+                rcWork: RECT {
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                },
+                dwFlags: 0,
+            };
+            if GetMonitorInfoW(hmon, &mut mi as *mut _ as *mut _) != 0 {
+                let width = (mi.rcWork.right - mi.rcWork.left) as u32;
+                let height = (mi.rcWork.bottom - mi.rcWork.top) as u32;
+                let _ = window.set_position(PhysicalPosition::new(mi.rcWork.left, mi.rcWork.top));
+                let _ = window.set_size(PhysicalSize::new(width, height));
+            }
+        }
+    }
+}
+
 pub struct AppState {
     pub session_manager: SessionManager,
 }
@@ -57,7 +95,8 @@ fn launch_app(
     state: State<Mutex<AppState>>,
 ) -> Result<AppSession, String> {
     let lock = state.lock().unwrap();
-    lock.session_manager.launch_session(&device, &package_name, &app_name, &audio_mode, dpi)
+    lock.session_manager
+        .launch_session(&device, &package_name, &app_name, &audio_mode, dpi)
 }
 
 #[tauri::command]
@@ -69,6 +108,41 @@ fn stop_app(session_id: String, state: State<Mutex<AppState>>) -> Result<bool, S
 #[tauri::command]
 fn send_back(device: String) -> Result<(), String> {
     SessionManager::send_back_key(&device)
+}
+
+#[tauri::command]
+async fn move_to_next_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
+    let monitors = window.available_monitors().map_err(|e| e.to_string())?;
+    if monitors.len() <= 1 {
+        return Ok(());
+    }
+
+    let current = window.current_monitor().map_err(|e| e.to_string())?;
+    let mut next_idx = 0;
+    if let Some(curr_mon) = current {
+        for (index, monitor) in monitors.iter().enumerate() {
+            if monitor.name() == curr_mon.name() {
+                next_idx = (index + 1) % monitors.len();
+                break;
+            }
+        }
+    }
+
+    let target_monitor = &monitors[next_idx];
+    let monitor_position = target_monitor.position();
+
+    #[cfg(target_os = "windows")]
+    fit_window_to_monitor_work_area(&window, monitor_position.x + 10, monitor_position.y + 10);
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = window.set_position(tauri::PhysicalPosition::new(
+            monitor_position.x,
+            monitor_position.y,
+        ));
+    }
+
+    Ok(())
 }
 
 pub fn run() {
@@ -89,7 +163,8 @@ pub fn run() {
             uninstall_app,
             launch_app,
             stop_app,
-            send_back
+            send_back,
+            move_to_next_monitor
         ])
         .setup(|app| {
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {

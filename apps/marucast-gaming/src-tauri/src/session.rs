@@ -7,6 +7,22 @@ use std::thread::{sleep, spawn};
 use std::time::Duration;
 
 #[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn hide_command_window(command: &mut Command) -> &mut Command {
+    command.creation_flags(CREATE_NO_WINDOW)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_command_window(command: &mut Command) -> &mut Command {
+    command
+}
+
+#[cfg(target_os = "windows")]
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, VK_MENU,
 };
@@ -49,7 +65,8 @@ impl SessionManager {
         }
 
         // Check PATH
-        if let Ok(output) = Command::new("where.exe").arg("scrcpy").output() {
+        let mut where_command = Command::new("where.exe");
+        if let Ok(output) = hide_command_window(where_command.arg("scrcpy")).output() {
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 if let Some(first_line) = stdout.lines().next() {
@@ -76,11 +93,14 @@ impl SessionManager {
         let target_dpi = dpi.unwrap_or(240);
 
         // 1. Wake up device compositor & dismiss keyguard if asleep
-        let _ = Command::new("adb")
-            .args(&["-s", device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"])
-            .output();
+        let mut wake_command = Command::new("adb");
+        let _ = hide_command_window(
+            wake_command.args(&["-s", device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"]),
+        )
+        .output();
 
         let mut cmd = Command::new(scrcpy_path);
+        hide_command_window(&mut cmd);
 
         #[cfg(target_os = "windows")]
         let (screen_w, screen_h) = unsafe {
@@ -190,9 +210,16 @@ impl SessionManager {
 
                 // 2. Periodic app focus check every ~1.5s
                 if loop_counter % 30 == 0 {
-                    let output = Command::new("adb")
-                        .args(&["-s", &device_clone, "shell", "dumpsys", "window", "windows"])
-                        .output();
+                    let mut focus_command = Command::new("adb");
+                    let output = hide_command_window(focus_command.args(&[
+                        "-s",
+                        &device_clone,
+                        "shell",
+                        "dumpsys",
+                        "window",
+                        "windows",
+                    ]))
+                    .output();
 
                     if let Ok(out) = output {
                         let text = String::from_utf8_lossy(&out.stdout);
@@ -252,8 +279,8 @@ impl SessionManager {
 
     /// Injects an Android Back keyevent (Shift+Space mapping)
     pub fn send_back_key(device: &str) -> Result<(), String> {
-        Command::new("adb")
-            .args(&["-s", device, "shell", "input", "keyevent", "KEYCODE_BACK"])
+        let mut command = Command::new("adb");
+        hide_command_window(command.args(&["-s", device, "shell", "input", "keyevent", "KEYCODE_BACK"]))
             .output()
             .map_err(|e| format!("Failed to send back keyevent: {}", e))?;
         Ok(())
