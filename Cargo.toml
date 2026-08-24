@@ -6,6 +6,7 @@ members = [
     "apps/files-companion/src-tauri",
     "apps/monika-piano/src-tauri",
     "apps/maudio-windows/src-tauri",
+    "apps/marucast-gaming/src-tauri",
 ]
 
 [workspace.dependencies]

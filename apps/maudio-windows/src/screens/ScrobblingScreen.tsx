@@ -81,7 +81,7 @@ export const ScrobblingScreen: React.FC = () => {
     // Handle token or full URL pasted from callback
     let token = raw;
     if (raw.includes("token=")) {
-      const match = raw.match(/token=([a-zA-Z0-9]+)/);
+      const match = raw.match(/token=([a-zA-Z0-9_\-]+)/);
       if (match && match[1]) {
         token = match[1];
       }
