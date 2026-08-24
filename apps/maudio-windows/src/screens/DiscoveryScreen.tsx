@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RecommendedTrackItem } from "../types";
-import { Sparkles, LayoutList, LayoutGrid, ChevronRight, Disc, RefreshCw, Loader2 } from "lucide-react";
+import { Sparkles, LayoutList, LayoutGrid, ChevronRight, Disc, RefreshCw } from "lucide-react";
 import { getRecommendations } from "../utils/LastFmRecommendationsEngine";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface DiscoveryScreenProps {
   username: string;
@@ -48,6 +49,30 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
     } finally {
       setIsLoadingMore(false);
     }
+  };
+
+  const handleTrackClick = async (item: RecommendedTrackItem) => {
+    const directLaunch = localStorage.getItem("maudio_direct_launch") === "true";
+    if (directLaunch) {
+      const preferred = localStorage.getItem("maudio_preferred_platform") || "Spotify";
+      const q = encodeURIComponent(`${item.artist} ${item.title}`.trim());
+      let url = `https://open.spotify.com/search/${q}`;
+      if (preferred.toLowerCase().includes("apple")) {
+        url = item.appleMusicUrl || `https://music.apple.com/search?term=${q}`;
+      } else if (preferred.toLowerCase().includes("youtube")) {
+        url = `https://music.youtube.com/search?q=${q}`;
+      } else if (preferred.toLowerCase().includes("tidal")) {
+        url = `https://listen.tidal.com/search?q=${q}`;
+      }
+      try {
+        await openUrl(url);
+        return;
+      } catch (e) {
+        window.open(url, "_blank");
+        return;
+      }
+    }
+    onSongClick(item);
   };
 
   useEffect(() => {
@@ -220,7 +245,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               transition={{ duration: 0.18, delay: (idx % 12) * 0.02 }}
               whileHover={{ scale: 1.008, x: 2 }}
               whileTap={{ scale: 0.99 }}
-              onClick={() => onSongClick(item)}
+              onClick={() => handleTrackClick(item)}
               className="glass-card"
               style={{
                 padding: "10px 14px",
@@ -330,7 +355,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               transition={{ duration: 0.18, delay: (idx % 12) * 0.02 }}
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => onSongClick(item)}
+              onClick={() => handleTrackClick(item)}
               className="glass-card"
               style={{
                 borderRadius: "14px",

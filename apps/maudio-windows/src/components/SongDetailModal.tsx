@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, Music, Sparkles, Disc, Play } from "lucide-react";
+import { X, ExternalLink, Music, Sparkles, Disc, Play, Radio } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 interface SongDetailModalProps {
   song: {
@@ -13,6 +14,21 @@ interface SongDetailModalProps {
   onSelectSong?: (title: string, artist: string) => void;
 }
 
+export function getStreamingUrls(title: string, artist: string, directAppleMusicUrl?: string | null) {
+  const cleanTitle = title.replace(/\(.*?\)|\[.*?\]/g, "").trim();
+  const cleanArtist = artist.replace(/\(.*?\)/g, "").trim();
+  const q = encodeURIComponent(`${cleanArtist} ${cleanTitle}`.trim());
+
+  return {
+    spotify: `https://open.spotify.com/search/${q}`,
+    appleMusic: directAppleMusicUrl || `https://music.apple.com/search?term=${q}`,
+    youtubeMusic: `https://music.youtube.com/search?q=${q}`,
+    youtube: `https://www.youtube.com/results?search_query=${q}`,
+    tidal: `https://listen.tidal.com/search?q=${q}`,
+    lastfm: `https://www.last.fm/music/${encodeURIComponent(cleanArtist)}/_/${encodeURIComponent(cleanTitle)}`,
+  };
+}
+
 export const SongDetailModal: React.FC<SongDetailModalProps> = ({
   song,
   onDismiss,
@@ -20,7 +36,13 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
 }) => {
   const [resolvedArt, setResolvedArt] = useState<string | null>(null);
   const [appleMusicUrl, setAppleMusicUrl] = useState<string | null>(null);
+  const [preferredPlatform, setPreferredPlatform] = useState<string>("Spotify");
   const [similarTracks, setSimilarTracks] = useState<{ title: string; artist: string }[]>([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("maudio_preferred_platform") || "Spotify";
+    setPreferredPlatform(saved);
+  }, [song]);
 
   useEffect(() => {
     if (!song) return;
@@ -50,9 +72,30 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
     ]);
   }, [song]);
 
+  const handleLaunchUrl = async (url: string) => {
+    try {
+      await openUrl(url);
+    } catch (e) {
+      window.open(url, "_blank");
+    }
+  };
+
+  const urls = song ? getStreamingUrls(song.title, song.artist, appleMusicUrl) : null;
+
+  const platforms = [
+    { name: "Spotify", url: urls?.spotify, color: "#1DB954" },
+    { name: "Apple Music", url: urls?.appleMusic, color: "#FA243C" },
+    { name: "YouTube Music", url: urls?.youtubeMusic, color: "#FF0000" },
+    { name: "YouTube", url: urls?.youtube, color: "#FF0000" },
+    { name: "Tidal", url: urls?.tidal, color: "#00FFFF" },
+    { name: "Last.fm", url: urls?.lastfm, color: "#D51007" },
+  ];
+
+  const primaryPlatform = platforms.find((p) => p.name.toLowerCase() === preferredPlatform.toLowerCase()) || platforms[0];
+
   return (
     <AnimatePresence>
-      {song && (
+      {song && urls && (
         <>
           {/* Backdrop */}
           <motion.div
@@ -66,8 +109,8 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               left: 0,
               right: 0,
               bottom: 0,
-              background: "rgba(0, 0, 0, 0.7)",
-              backdropFilter: "blur(12px)",
+              background: "rgba(0, 0, 0, 0.75)",
+              backdropFilter: "blur(14px)",
               zIndex: 110,
             }}
           />
@@ -83,8 +126,8 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               bottom: 0,
               left: 0,
               right: 0,
-              maxHeight: "85vh",
-              background: "linear-gradient(180deg, #140d24 0%, #0a0714 100%)",
+              maxHeight: "88vh",
+              background: "linear-gradient(180deg, #18102a 0%, #0a0714 100%)",
               borderTop: "1.5px solid rgba(255, 113, 162, 0.4)",
               borderRadius: "24px 24px 0 0",
               zIndex: 111,
@@ -93,7 +136,7 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               display: "flex",
               flexDirection: "column",
               gap: "20px",
-              maxWidth: "800px",
+              maxWidth: "840px",
               margin: "0 auto",
               boxShadow: "0 -16px 40px rgba(0, 0, 0, 0.8)",
             }}
@@ -167,36 +210,71 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
                   </div>
                 )}
 
-                {/* Streaming Launch Button */}
-                {appleMusicUrl && (
-                  <a
-                    href={appleMusicUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                {/* Primary Streaming Launcher */}
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => primaryPlatform.url && handleLaunchUrl(primaryPlatform.url)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    marginTop: "14px",
+                    padding: "9px 20px",
+                    borderRadius: "999px",
+                    background: "var(--maru-accent-pink)",
+                    border: "none",
+                    color: "#ffffff",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 16px rgba(255, 113, 162, 0.4)",
+                  }}
+                >
+                  <Play size={14} fill="#ffffff" />
+                  <span>PLAY ON {primaryPlatform.name.toUpperCase()}</span>
+                  <ExternalLink size={13} />
+                </motion.button>
+              </div>
+            </div>
+
+            {/* All Streaming Platforms Grid */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ fontSize: "12px", fontWeight: 800, color: "rgba(235, 235, 245, 0.6)", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                Listen on other music services
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "8px" }}>
+                {platforms.map((p) => (
+                  <motion.button
+                    key={p.name}
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => p.url && handleLaunchUrl(p.url)}
                     style={{
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      marginTop: "12px",
-                      padding: "8px 16px",
-                      borderRadius: "999px",
-                      background: "rgba(255, 113, 162, 0.2)",
-                      border: "1px solid rgba(255, 113, 162, 0.5)",
-                      color: "#ffffff",
-                      fontSize: "12.5px",
-                      fontWeight: 800,
-                      textDecoration: "none",
+                      justifyContent: "center",
+                      gap: "6px",
+                      padding: "8px 12px",
+                      borderRadius: "12px",
+                      background: "rgba(255, 255, 255, 0.08)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      color: "#fafcff",
+                      fontSize: "11.5px",
+                      fontWeight: 700,
+                      cursor: "pointer",
                     }}
                   >
-                    <span>Open in Apple Music</span>
-                    <ExternalLink size={13} />
-                  </a>
-                )}
+                    <span>{p.name}</span>
+                    <ExternalLink size={11} color="rgba(255, 255, 255, 0.5)" />
+                  </motion.button>
+                ))}
               </div>
             </div>
 
             {/* Similar Tracks Row */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
               <div style={{ fontSize: "13.5px", fontWeight: 800, color: "var(--maru-accent-blue)" }}>
                 Similar Tracks
               </div>
