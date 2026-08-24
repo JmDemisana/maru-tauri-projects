@@ -39,6 +39,7 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   const [isPlayingInAppAudio, setIsPlayingInAppAudio] = useState<boolean>(false);
   const [audioDurationSec, setAudioDurationSec] = useState<number>(0);
+  const [isNativeDspActive, setIsNativeDspActive] = useState<boolean>(false);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -247,6 +248,23 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
       } catch (e) {
         console.error("Audio playback error:", e);
       }
+    }
+  };
+
+  const handleToggleNativeDsp = async () => {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      if (isNativeDspActive) {
+        await invoke("stop_native_dsp");
+        setIsNativeDspActive(false);
+      } else {
+        await invoke("start_native_dsp", {
+          appName: mediaState.app_name || "spotify",
+        });
+        setIsNativeDspActive(true);
+      }
+    } catch (e) {
+      console.error("Native DSP toggle error:", e);
     }
   };
 
@@ -776,6 +794,30 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
 
           <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.08)" }} />
 
+          {/* Native PC Audio WASAPI DSP Toggle */}
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleToggleNativeDsp}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "9px 14px",
+              borderRadius: "12px",
+              background: isNativeDspActive ? "var(--maru-accent-pink)" : "rgba(232, 93, 159, 0.2)",
+              border: "1.5px solid var(--maru-accent-pink)",
+              color: "#ffffff",
+              fontWeight: 800,
+              fontSize: "11px",
+              cursor: "pointer",
+            }}
+          >
+            <Radio size={14} className={isNativeDspActive ? "animate-pulse" : ""} />
+            <span>{isNativeDspActive ? "STOP PC AUDIO DSP" : `ACTIVATE PC AUDIO DSP (${(mediaState.app_name || "PC Audio").toUpperCase()})`}</span>
+          </motion.button>
+
           {/* Direct Studio Karaoke Player Trigger */}
           {previewAudioUrl && (
             <motion.button
@@ -787,18 +829,18 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "8px",
-                padding: "9px 14px",
+                padding: "8px 14px",
                 borderRadius: "12px",
-                background: isPlayingInAppAudio ? "var(--maru-accent-pink)" : "rgba(232, 93, 159, 0.2)",
-                border: "1px solid var(--maru-accent-pink)",
-                color: "#ffffff",
-                fontWeight: 800,
-                fontSize: "11px",
+                background: isPlayingInAppAudio ? "rgba(255, 113, 162, 0.3)" : "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                color: "rgba(235, 235, 245, 0.8)",
+                fontWeight: 700,
+                fontSize: "10.5px",
                 cursor: "pointer",
               }}
             >
-              {isPlayingInAppAudio ? <Pause size={14} fill="#ffffff" /> : <Play size={14} fill="#ffffff" />}
-              <span>{isPlayingInAppAudio ? "PAUSE IN-APP DSP KARAOKE" : "PLAY IN-APP DSP KARAOKE"}</span>
+              {isPlayingInAppAudio ? <Pause size={13} fill="#ffffff" /> : <Play size={13} fill="#ffffff" />}
+              <span>{isPlayingInAppAudio ? "PAUSE CLOUD AUDIO PREVIEW" : "PLAY CLOUD AUDIO PREVIEW"}</span>
             </motion.button>
           )}
 

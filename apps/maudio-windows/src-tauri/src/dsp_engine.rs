@@ -5,7 +5,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream};
 
 enum DspCommand {
-    Start,
+    Start { app_name: String },
     Stop,
 }
 
@@ -42,10 +42,19 @@ impl DspEngine {
         // Dedicated OS Audio Thread for WASAPI Stream
         std::thread::spawn(move || {
             let mut active_stream: Option<Stream> = None;
+            let mut current_muted_app: Option<String> = None;
 
             while let Ok(cmd) = rx.recv() {
                 match cmd {
-                    DspCommand::Start => {
+                    DspCommand::Start { app_name } => {
+                        // 1. Mute target app session in Windows Volume Mixer
+                        #[cfg(target_os = "windows")]
+                        {
+                            let _ = mute_app_by_name(&app_name, true);
+                            current_muted_app = Some(app_name);
+                        }
+
+                        // 2. Start WASAPI Audio Stream
                         if active_stream.is_none() {
                             if let Ok(stream) = create_dsp_stream(
                                 &thread_vocal,
@@ -61,6 +70,16 @@ impl DspEngine {
                         }
                     }
                     DspCommand::Stop => {
+                        // 1. Unmute target app session
+                        #[cfg(target_os = "windows")]
+                        {
+                            if let Some(ref app) = current_muted_app {
+                                let _ = mute_app_by_name(app, false);
+                            }
+                            current_muted_app = None;
+                        }
+
+                        // 2. Stop WASAPI stream
                         active_stream = None;
                         thread_active.store(false, Ordering::Relaxed);
                     }
@@ -92,9 +111,9 @@ impl DspEngine {
         }
     }
 
-    pub fn start(&self) -> Result<bool, String> {
+    pub fn start(&self, app_name: String) -> Result<bool, String> {
         self.cmd_tx
-            .send(DspCommand::Start)
+            .send(DspCommand::Start { app_name })
             .map_err(|e| e.to_string())?;
         Ok(true)
     }
@@ -195,5 +214,52 @@ fn process_audio_f32(
         for i in 0..16 {
             peaks[i] = peaks[i] * 0.8 + local_peaks[i] * 0.2;
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn mute_app_by_name(app_pattern: &str, mute: bool) -> Result<bool, String> {
+    use windows::core::Interface;
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+    use windows::Win32::Media::Audio::*;
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)
+            .map_err(|e| format!("IMMDeviceEnumerator failed: {}", e))?;
+
+        let default_device = enumerator
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .map_err(|e| format!("GetDefaultAudioEndpoint failed: {}", e))?;
+
+        let session_manager: IAudioSessionManager2 = default_device
+            .Activate(CLSCTX_ALL, None)
+            .map_err(|e| format!("IAudioSessionManager2 failed: {}", e))?;
+
+        let session_enum = session_manager
+            .GetSessionEnumerator()
+            .map_err(|e| format!("GetSessionEnumerator failed: {}", e))?;
+
+        let count = session_enum.GetCount().map_err(|e| format!("GetCount failed: {}", e))?;
+        let pat = app_pattern.to_lowercase();
+
+        let mut matched = false;
+        for i in 0..count {
+            if let Ok(session) = session_enum.GetSession(i) {
+                if let Ok(session2) = session.cast::<IAudioSessionControl2>() {
+                    if let Ok(id_h) = session2.GetSessionIdentifier() {
+                        let id_str = id_h.to_string().unwrap_or_default().to_lowercase();
+                        if id_str.contains(&pat) && !id_str.contains("maudio") {
+                            if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
+                                let _ = vol.SetMute(mute, std::ptr::null());
+                                matched = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(matched)
     }
 }

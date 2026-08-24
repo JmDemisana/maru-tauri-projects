@@ -28,8 +28,13 @@ windows = { version = "0.61", features = [
     "Media_Control",
     "Storage_Streams",
     "Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
 ] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
 ] }

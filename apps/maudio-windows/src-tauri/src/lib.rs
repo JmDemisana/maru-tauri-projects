@@ -48,8 +48,9 @@ async fn send_media_control(command: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn start_native_dsp(state: tauri::State<'_, DspEngine>) -> Result<bool, String> {
-    state.start()
+fn start_native_dsp(app_name: Option<String>, state: tauri::State<'_, DspEngine>) -> Result<bool, String> {
+    let name = app_name.unwrap_or_else(|| "spotify".to_string());
+    state.start(name)
 }
 
 #[tauri::command]
