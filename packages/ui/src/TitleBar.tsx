@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getCurrentWindow, availableMonitors } from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 
 export interface TitleBarProps {
@@ -7,13 +7,15 @@ export interface TitleBarProps {
   iconSrc?: string;
   transparent?: boolean;
   background?: string;
+  draggable?: boolean;
+  showMoveMonitor?: boolean;
   onClose?: () => void;
 }
 
 // Windows 11 exact title bar token values
 const WIN11 = {
   dark: {
-    bg: "#202020",
+    bg: "#181424",
     text: "rgba(255,255,255,0.9)",
     btnHover: "rgba(255,255,255,0.09)",
     btnActive: "rgba(255,255,255,0.06)",
@@ -32,32 +34,24 @@ const WIN11 = {
 
 export const TitleBar: React.FC<TitleBarProps> = ({
   title = "Maru App",
-  iconSrc = "/app-icon.png",
+  iconSrc = "/icon.png",
   transparent = false,
   background,
+  draggable = false,
+  showMoveMonitor = true,
   onClose,
 }) => {
   const [isDark, setIsDark] = useState(
-    window.matchMedia("(prefers-color-scheme: dark)").matches
+    typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
   );
-  const [multiMonitor, setMultiMonitor] = useState(false);
   const appWindow = getCurrentWindow();
   const theme = isDark ? WIN11.dark : WIN11.light;
 
   useEffect(() => {
-    // OS dark/light mode
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     setIsDark(mq.matches);
     const onTheme = (e: MediaQueryListEvent) => setIsDark(e.matches);
     mq.addEventListener("change", onTheme);
-
-    // Check monitor count — show "move to monitor" only when useful
-    try {
-      availableMonitors().then((monitors) => {
-        setMultiMonitor(monitors && monitors.length > 1);
-      }).catch(() => {});
-    } catch (e) {}
-
     return () => mq.removeEventListener("change", onTheme);
   }, []);
 
@@ -99,6 +93,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         display: "flex",
         alignItems: "center",
         background: barBg,
+        borderBottom: transparent ? "none" : "1px solid rgba(255, 255, 255, 0.06)",
         userSelect: "none",
         WebkitUserSelect: "none",
         flexShrink: 0,
@@ -106,9 +101,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         zIndex: 10000,
       }}
     >
-      {/* Drag region */}
+      {/* Title & Icon Header Region (Non-draggable by default to prevent Windows Snap resizing) */}
       <div
-        data-tauri-drag-region
+        {...(draggable ? { "data-tauri-drag-region": "" } : {})}
         style={{
           display: "flex",
           alignItems: "center",
@@ -116,7 +111,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           flex: 1,
           height: "100%",
           paddingLeft: "12px",
-          cursor: "default",
+          cursor: draggable ? "default" : "default",
           overflow: "hidden",
         }}
       >
@@ -135,13 +130,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({
           }}
         />
         <span
-          data-tauri-drag-region
+          {...(draggable ? { "data-tauri-drag-region": "" } : {})}
           style={{
             fontSize: "12px",
             color: theme.text,
             fontFamily: '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
-            fontWeight: 400,
-            letterSpacing: "0.005em",
+            fontWeight: 500,
+            letterSpacing: "0.01em",
             pointerEvents: "none",
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -153,10 +148,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         </span>
       </div>
 
-      {/* Window controls: Move monitor | Minimize | Close */}
+      {/* Window controls: Move to Monitor | Minimize | Close */}
       <div style={{ display: "flex", alignItems: "stretch", height: "100%", flexShrink: 0 }}>
-        {/* 1. Move to next monitor */}
-        {multiMonitor && (
+        {/* 1. Move to next monitor (Always available to shift monitors safely without dragging) */}
+        {showMoveMonitor && (
           <Win11Button
             tooltip="Move to next monitor"
             hoverBg={theme.btnHover}
@@ -164,7 +159,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
             textColor={theme.text}
             onClick={handleMoveMonitor}
           >
-            {/* Windows Project / Multiple Displays icon */}
+            {/* Windows Multiple Displays / Monitor Shift Icon */}
             <svg width="12" height="11" viewBox="0 0 12 11" fill="none">
               <path
                 d="M5 1.5H9.5C10.0523 1.5 10.5 1.94772 10.5 2.5V7C10.5 7.55228 10.0523 8 9.5 8"
