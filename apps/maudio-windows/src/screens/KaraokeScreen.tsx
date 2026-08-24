@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { MediaState, SongDetailState } from "../types";
 import {
   Mic2,
@@ -11,12 +11,11 @@ import {
   Layers,
   Activity,
   Play,
+  Pause,
   Volume2,
-  Radio,
-  List,
-  Focus,
 } from "lucide-react";
 import { AudioDspEngine } from "../utils/AudioDspEngine";
+import { searchItunesSong } from "../utils/LastFmRecommendationsEngine";
 
 interface KaraokeScreenProps {
   mediaState: MediaState;
@@ -35,12 +34,16 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
   const [currentLineIdx, setCurrentLineIdx] = useState<number>(-1);
   const [offsetMs, setOffsetMs] = useState<number>(0);
   const [interpolatedTimeMs, setInterpolatedTimeMs] = useState<number>(0);
-  const [isCapturingAudio, setIsCapturingAudio] = useState(false);
-  const [isFullScrollMode, setIsFullScrollMode] = useState(false); // Default: 3-line spotlight!
+
+  // In-App Studio Player & DSP
+  const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+  const [isPlayingInAppAudio, setIsPlayingInAppAudio] = useState<boolean>(false);
+  const [audioDurationSec, setAudioDurationSec] = useState<number>(0);
 
   const activeLineRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const dspEngineRef = useRef<AudioDspEngine | null>(null);
 
   const lastSyncRef = useRef<{ mediaPos: number; timestamp: number }>({
@@ -51,7 +54,7 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
   // Stems & Sing Controls
   const [showStemDrawer, setShowStemDrawer] = useState<boolean>(true);
   const [vocalLevel, setVocalLevel] = useState<number>(() => {
-    return parseInt(localStorage.getItem("maudio_karaoke_vocal_level") || "20", 10);
+    return parseInt(localStorage.getItem("maudio_karaoke_vocal_level") || "10", 10);
   });
   const [instrumentalLevel, setInstrumentalLevel] = useState<number>(() => {
     return parseInt(localStorage.getItem("maudio_karaoke_inst_level") || "100", 10);
@@ -72,6 +75,20 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
     };
   }, []);
 
+  // Connect Audio Element to DSP Engine
+  const setupAudioDsp = () => {
+    if (audioElRef.current && dspEngineRef.current) {
+      try {
+        dspEngineRef.current.init(audioElRef.current);
+        dspEngineRef.current.setVocalLevel(vocalLevel);
+        dspEngineRef.current.setInstrumentalLevel(instrumentalLevel);
+        dspEngineRef.current.setBassPunch(bassPunch);
+      } catch (e) {
+        console.warn("Audio element already connected to WebAudio node");
+      }
+    }
+  };
+
   // Update DSP engine parameters whenever sliders change
   useEffect(() => {
     if (dspEngineRef.current) {
@@ -83,12 +100,6 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
     localStorage.setItem("maudio_karaoke_inst_level", instrumentalLevel.toString());
     localStorage.setItem("maudio_karaoke_bass_level", bassPunch.toString());
   }, [vocalLevel, instrumentalLevel, bassPunch]);
-
-  const handleStartCapture = async () => {
-    if (!dspEngineRef.current) return;
-    const ok = await dspEngineRef.current.captureSystemAudio();
-    setIsCapturingAudio(ok);
-  };
 
   const handleApplyPreset = (preset: "karaoke" | "duet" | "acapella" | "original") => {
     setActiveStemPreset(preset);
@@ -136,21 +147,30 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
     return result.sort((a, b) => a.timeMs - b.timeMs);
   };
 
-  // Fetch synced lyrics whenever playing song changes
+  // Fetch synced lyrics and search iTunes preview audio whenever song changes
   useEffect(() => {
     if (!mediaState.title) {
       setLyrics([]);
       setPlainLyrics(null);
+      setPreviewAudioUrl(null);
       return;
     }
 
-    const fetchLyrics = async () => {
+    const fetchSongAssets = async () => {
       setIsLoading(true);
       try {
         const cleanTitle = mediaState.title!.replace(/\(.*?\)|\[.*?\]/g, "").trim();
         const cleanArtist = mediaState.artist ? mediaState.artist.replace(/\(.*?\)/g, "").trim() : "";
         const durSec = mediaState.duration_ms ? Math.floor(mediaState.duration_ms / 1000) : 0;
 
+        // 1. Fetch iTunes audio preview for clean in-app DSP playback
+        searchItunesSong(cleanTitle, cleanArtist).then((match) => {
+          if (match?.previewUrl) {
+            setPreviewAudioUrl(match.previewUrl);
+          }
+        }).catch(() => {});
+
+        // 2. Fetch timed lyrics from LRCLIB
         const queryParams = new URLSearchParams({
           track_name: cleanTitle,
           artist_name: cleanArtist,
@@ -188,17 +208,37 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
           }
         }
       } catch (e) {
-        console.error("Failed to load karaoke lyrics:", e);
+        console.error("Failed to load karaoke assets:", e);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchLyrics();
+    fetchSongAssets();
   }, [mediaState.title, mediaState.artist]);
 
-  // High-Precision Playback Position Interpolator
+  // Handle Play/Pause of in-app DSP audio stream
+  const handleToggleInAppAudio = async () => {
+    if (!audioElRef.current) return;
+    setupAudioDsp();
+
+    if (isPlayingInAppAudio) {
+      audioElRef.current.pause();
+      setIsPlayingInAppAudio(false);
+    } else {
+      try {
+        await audioElRef.current.play();
+        setIsPlayingInAppAudio(true);
+      } catch (e) {
+        console.error("Audio playback error:", e);
+      }
+    }
+  };
+
+  // High-Precision Playback Position Interpolator (Tracks either in-app audio or GSMTC)
   useEffect(() => {
+    if (isPlayingInAppAudio) return; // In-app audio uses audio.ontimeupdate directly
+
     if (mediaState.position_ms != null) {
       lastSyncRef.current = {
         mediaPos: mediaState.position_ms,
@@ -206,17 +246,17 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
       };
       setInterpolatedTimeMs(mediaState.position_ms);
     }
-  }, [mediaState.position_ms]);
+  }, [mediaState.position_ms, isPlayingInAppAudio]);
 
   useEffect(() => {
-    if (!mediaState.is_playing) return;
+    if (isPlayingInAppAudio || !mediaState.is_playing) return;
     const interval = setInterval(() => {
       const elapsed = performance.now() - lastSyncRef.current.timestamp;
       const current = lastSyncRef.current.mediaPos + elapsed;
       setInterpolatedTimeMs(current);
     }, 100);
     return () => clearInterval(interval);
-  }, [mediaState.is_playing]);
+  }, [mediaState.is_playing, isPlayingInAppAudio]);
 
   // Track live position and update active line
   useEffect(() => {
@@ -238,9 +278,9 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
     }
   }, [interpolatedTimeMs, lyrics, offsetMs, currentLineIdx]);
 
-  // Guaranteed Smooth Centered Auto-Scroll to Active Lyric Line (Full Scroll mode)
+  // Continuous Smooth Centered Auto-Scroll (No Disappearing Animation)
   useEffect(() => {
-    if (isFullScrollMode && activeLineRef.current && scrollContainerRef.current) {
+    if (activeLineRef.current && scrollContainerRef.current) {
       const container = scrollContainerRef.current;
       const element = activeLineRef.current;
 
@@ -255,7 +295,7 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
         behavior: "smooth",
       });
     }
-  }, [currentLineIdx, isFullScrollMode]);
+  }, [currentLineIdx]);
 
   // Live Audio Visualizer Canvas Loop
   useEffect(() => {
@@ -290,14 +330,11 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
     return `${min.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
-  const durationMs = mediaState.duration_ms || (lyrics.length > 0 ? lyrics[lyrics.length - 1].timeMs + 10000 : 180000);
-  const progressPercent = Math.min(100, Math.max(0, (interpolatedTimeMs / durationMs) * 100));
+  const durationMs = isPlayingInAppAudio && audioDurationSec > 0
+    ? audioDurationSec * 1000
+    : (mediaState.duration_ms || (lyrics.length > 0 ? lyrics[lyrics.length - 1].timeMs + 10000 : 180000));
 
-  // Compute 3-Line Spotlight items
-  const validCurrentIdx = currentLineIdx >= 0 ? currentLineIdx : 0;
-  const prevLine = validCurrentIdx > 0 && lyrics.length > 0 ? lyrics[validCurrentIdx - 1] : null;
-  const currentLine = lyrics.length > 0 ? lyrics[validCurrentIdx] : null;
-  const nextLine = validCurrentIdx + 1 < lyrics.length ? lyrics[validCurrentIdx + 1] : null;
+  const progressPercent = Math.min(100, Math.max(0, (interpolatedTimeMs / durationMs) * 100));
 
   return (
     <motion.div
@@ -314,6 +351,26 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
         padding: "16px 28px 24px",
       }}
     >
+      {/* Hidden Audio Element for Direct In-App Studio DSP Output */}
+      {previewAudioUrl && (
+        <audio
+          ref={audioElRef}
+          src={previewAudioUrl}
+          crossOrigin="anonymous"
+          onTimeUpdate={(e) => {
+            const cur = e.currentTarget.currentTime * 1000;
+            setInterpolatedTimeMs(cur);
+            lastSyncRef.current = { mediaPos: cur, timestamp: performance.now() };
+          }}
+          onLoadedMetadata={(e) => {
+            setAudioDurationSec(e.currentTarget.duration);
+          }}
+          onEnded={() => {
+            setIsPlayingInAppAudio(false);
+          }}
+        />
+      )}
+
       {/* 1. Track Header & Sync Controls */}
       <div
         style={{
@@ -377,29 +434,8 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
           </div>
         </div>
 
-        {/* Sync Offset, View Mode & Stems Toggle */}
+        {/* Sync Offset & Stems Toggle */}
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-          {/* View Mode Toggle (3-Line Spotlight vs Full Scroll) */}
-          <button
-            onClick={() => setIsFullScrollMode(!isFullScrollMode)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "6px 12px",
-              borderRadius: "20px",
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              color: "#fafcff",
-              fontSize: "11px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            {isFullScrollMode ? <Focus size={13} color="var(--maru-accent-pink)" /> : <List size={13} color="var(--maru-accent-pink)" />}
-            <span>{isFullScrollMode ? "3-LINE SPOTLIGHT" : "FULL SCROLL"}</span>
-          </button>
-
           {/* Stem Separation Drawer Toggle */}
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -461,7 +497,7 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
         </div>
       </div>
 
-      {/* 2. Interactive Timeline Scrubber Bar */}
+      {/* 2. Interactive Timeline Scrubber Bar with In-App Play/Pause */}
       <div
         style={{
           display: "flex",
@@ -471,6 +507,30 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
           flexShrink: 0,
         }}
       >
+        {previewAudioUrl && (
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={handleToggleInAppAudio}
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "50%",
+              background: isPlayingInAppAudio ? "var(--maru-accent-pink)" : "rgba(255, 255, 255, 0.12)",
+              border: "1px solid var(--maru-accent-pink)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#ffffff",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+            title={isPlayingInAppAudio ? "Pause In-App Karaoke DSP Stream" : "Play In-App Karaoke DSP Stream"}
+          >
+            {isPlayingInAppAudio ? <Pause size={14} fill="#ffffff" /> : <Play size={14} fill="#ffffff" style={{ marginLeft: "2px" }} />}
+          </motion.button>
+        )}
+
         <span style={{ fontSize: "11.5px", fontFamily: "monospace", color: "var(--maru-accent-pink)", fontWeight: 700 }}>
           {formatTime(interpolatedTimeMs)}
         </span>
@@ -482,6 +542,9 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
             const pct = Math.max(0, Math.min(1, clickX / rect.width));
             const newPos = pct * durationMs;
             setInterpolatedTimeMs(newPos);
+            if (audioElRef.current && isPlayingInAppAudio) {
+              audioElRef.current.currentTime = newPos / 1000;
+            }
             lastSyncRef.current = { mediaPos: newPos, timestamp: performance.now() };
           }}
           style={{
@@ -514,9 +577,9 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
         </span>
       </div>
 
-      {/* 3. Main Content Split: Lyrics Center + Stems Sidebar */}
+      {/* 3. Main Content Split: Smooth Continuous Scrolling Lyrics Center + Stems Sidebar */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden", position: "relative" }}>
-        {/* CENTER LYRICS VIEWPORT */}
+        {/* Continuous Smooth Scrolling Lyric Stage */}
         <div
           ref={scrollContainerRef}
           style={{
@@ -525,14 +588,14 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: isFullScrollMode ? "flex-start" : "center",
-            padding: isFullScrollMode ? "80px 24px 160px" : "32px 24px",
-            gap: isFullScrollMode ? "26px" : "28px",
+            padding: "160px 24px 240px",
+            gap: "20px",
             userSelect: "none",
+            scrollBehavior: "smooth",
           }}
         >
           {isLoading && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", marginTop: "40px" }}>
               <RefreshCw size={32} className="animate-spin" color="var(--maru-accent-pink)" />
               <span style={{ fontSize: "13px", color: "rgba(235, 235, 245, 0.72)" }}>
                 Fetching synced karaoke lyrics...
@@ -541,7 +604,7 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
           )}
 
           {!isLoading && !mediaState.title && (
-            <div style={{ textAlign: "center" }}>
+            <div style={{ textAlign: "center", marginTop: "40px" }}>
               <Disc size={44} color="rgba(235, 235, 245, 0.3)" style={{ margin: "0 auto 14px" }} />
               <div style={{ fontSize: "16px", fontWeight: 800, color: "#f4f4f9fa" }}>
                 Waiting for Windows Audio
@@ -553,7 +616,7 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
           )}
 
           {!isLoading && mediaState.title && lyrics.length === 0 && !plainLyrics && (
-            <div style={{ textAlign: "center" }}>
+            <div style={{ textAlign: "center", marginTop: "40px" }}>
               <Mic2 size={44} color="rgba(235, 235, 245, 0.3)" style={{ margin: "0 auto 14px" }} />
               <div style={{ fontSize: "16px", fontWeight: 800, color: "#f4f4f9fa" }}>
                 No Timed Lyrics Available
@@ -564,357 +627,283 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
             </div>
           )}
 
-          {/* 3-LINE SPOTLIGHT VIEW (DEFAULT) */}
-          {!isLoading && !isFullScrollMode && lyrics.length > 0 && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "24px",
-                width: "100%",
-                maxWidth: "840px",
-              }}
-            >
-              {/* Previous Line */}
-              <motion.div
-                key={`prev-${validCurrentIdx - 1}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: prevLine ? 0.38 : 0, y: 0 }}
-                transition={{ duration: 0.22 }}
-                onClick={() => {
-                  if (prevLine) {
-                    setInterpolatedTimeMs(prevLine.timeMs);
-                    lastSyncRef.current = { mediaPos: prevLine.timeMs, timestamp: performance.now() };
-                  }
-                }}
-                style={{
-                  fontSize: "19px",
-                  fontWeight: 600,
-                  color: "rgba(235, 235, 245, 0.7)",
-                  textAlign: "center",
-                  minHeight: "28px",
-                  cursor: prevLine ? "pointer" : "default",
-                  padding: "4px 16px",
-                }}
-              >
-                {prevLine ? prevLine.text : " "}
-              </motion.div>
-
-              {/* Current Playing Line (Main Spotlight) */}
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={`curr-${validCurrentIdx}`}
-                  initial={{ scale: 0.94, opacity: 0, y: 12 }}
-                  animate={{ scale: 1.04, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.94, opacity: 0, y: -12 }}
-                  transition={{ type: "spring", damping: 22, stiffness: 300 }}
-                  style={{
-                    fontSize: "30px",
-                    fontWeight: 900,
-                    color: "#ffffff",
-                    textAlign: "center",
-                    padding: "16px 32px",
-                    borderRadius: "20px",
-                    background: "rgba(232, 93, 159, 0.22)",
-                    border: "1.5px solid rgba(232, 93, 159, 0.6)",
-                    boxShadow: "0 0 35px rgba(232, 93, 159, 0.4)",
-                    textShadow: "0 0 28px rgba(232, 93, 159, 0.9), 0 2px 10px rgba(0,0,0,0.9)",
-                    lineHeight: "1.35",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  {currentLine ? currentLine.text : "🎶"}
-                </motion.div>
-              </AnimatePresence>
-
-              {/* Next Upcoming Line */}
-              <motion.div
-                key={`next-${validCurrentIdx + 1}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: nextLine ? 0.55 : 0, y: 0 }}
-                transition={{ duration: 0.22 }}
-                onClick={() => {
-                  if (nextLine) {
-                    setInterpolatedTimeMs(nextLine.timeMs);
-                    lastSyncRef.current = { mediaPos: nextLine.timeMs, timestamp: performance.now() };
-                  }
-                }}
-                style={{
-                  fontSize: "19px",
-                  fontWeight: 600,
-                  color: "rgba(235, 235, 245, 0.8)",
-                  textAlign: "center",
-                  minHeight: "28px",
-                  cursor: nextLine ? "pointer" : "default",
-                  padding: "4px 16px",
-                }}
-              >
-                {nextLine ? nextLine.text : " "}
-              </motion.div>
+          {!isLoading && plainLyrics && lyrics.length === 0 && (
+            <div style={{ maxWidth: "680px", textAlign: "center", lineHeight: "2.2", fontSize: "18px", color: "#f4f4f9fa", fontWeight: 600 }}>
+              {plainLyrics.split("\n").map((line, idx) => (
+                <div key={idx} style={{ marginBottom: "8px" }}>
+                  {line}
+                </div>
+              ))}
             </div>
           )}
 
-          {/* FULL SCROLL VIEW */}
-          {!isLoading && isFullScrollMode && lyrics.length > 0 && (
+          {/* Persistent Smooth Scrolling Lyric Lines with Dynamic Visibility & 3-Line Focus */}
+          {!isLoading &&
+            lyrics.length > 0 &&
             lyrics.map((line, idx) => {
               const isCurrent = idx === currentLineIdx;
-              const isPast = idx < currentLineIdx;
+              const isAdjacent = Math.abs(idx - currentLineIdx) === 1;
+              const isNear = Math.abs(idx - currentLineIdx) === 2;
 
               return (
-                <motion.div
+                <div
                   key={idx}
                   ref={isCurrent ? activeLineRef : null}
                   onClick={() => {
                     setInterpolatedTimeMs(line.timeMs);
+                    if (audioElRef.current && isPlayingInAppAudio) {
+                      audioElRef.current.currentTime = line.timeMs / 1000;
+                    }
                     lastSyncRef.current = { mediaPos: line.timeMs, timestamp: performance.now() };
                     setCurrentLineIdx(idx);
                   }}
-                  animate={{
-                    scale: isCurrent ? 1.07 : 1,
-                    opacity: isCurrent ? 1 : isPast ? 0.35 : 0.65,
-                  }}
-                  transition={{ duration: 0.2 }}
                   style={{
-                    fontSize: isCurrent ? "26px" : "20px",
-                    fontWeight: isCurrent ? 900 : 700,
-                    color: isCurrent ? "#ffffff" : "rgba(235, 235, 245, 0.8)",
+                    fontSize: isCurrent
+                      ? "clamp(38px, 4.2vw, 54px)"
+                      : isAdjacent
+                      ? "clamp(20px, 2.2vw, 25px)"
+                      : "15px",
+                    fontWeight: isCurrent ? 900 : isAdjacent ? 700 : 500,
+                    letterSpacing: isCurrent ? "-0.5px" : "normal",
+                    color: isCurrent
+                      ? "#ffffff"
+                      : isAdjacent
+                      ? "rgba(235, 235, 245, 0.75)"
+                      : "rgba(235, 235, 245, 0.2)",
+                    opacity: isCurrent ? 1 : isAdjacent ? 0.45 : isNear ? 0.15 : 0.04,
+                    transform: isCurrent ? "scale(1.04)" : "scale(1)",
                     textAlign: "center",
                     cursor: "pointer",
-                    maxWidth: "760px",
-                    lineHeight: "1.4",
-                    textShadow: isCurrent ? "0 0 24px rgba(232, 93, 159, 0.8), 0 2px 12px rgba(0,0,0,0.9)" : "none",
-                    padding: "8px 20px",
-                    borderRadius: "14px",
-                    background: isCurrent ? "rgba(232, 93, 159, 0.2)" : "transparent",
-                    border: isCurrent ? "1px solid rgba(232, 93, 159, 0.5)" : "1px solid transparent",
-                    transition: "all 0.2s ease",
+                    maxWidth: "920px",
+                    lineHeight: "1.3",
+                    textShadow: isCurrent
+                      ? "0 0 35px rgba(232, 93, 159, 0.95), 0 3px 16px rgba(0,0,0,0.95)"
+                      : "none",
+                    padding: isCurrent ? "18px 42px" : "6px 20px",
+                    borderRadius: isCurrent ? "26px" : "14px",
+                    background: isCurrent ? "rgba(232, 93, 159, 0.26)" : "transparent",
+                    border: isCurrent ? "2px solid rgba(232, 93, 159, 0.65)" : "1.5px solid transparent",
+                    boxShadow: isCurrent
+                      ? "0 0 45px rgba(232, 93, 159, 0.45), inset 0 0 16px rgba(232, 93, 159, 0.15)"
+                      : "none",
+                    transition: "all 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
                   }}
                 >
                   {line.text}
-                </motion.div>
+                </div>
               );
-            })
-          )}
+            })}
         </div>
 
         {/* 4. Real-Time Stem Separation & Apple Music Sing Slider Panel */}
-        <AnimatePresence>
-          {showStemDrawer && (
-            <motion.div
-              initial={{ width: 0, opacity: 0, x: 40 }}
-              animate={{ width: "290px", opacity: 1, x: 0 }}
-              exit={{ width: 0, opacity: 0, x: 40 }}
-              transition={{ type: "spring", damping: 24, stiffness: 260 }}
-              className="glass-card"
+        <div
+          style={{
+            width: showStemDrawer ? "290px" : "0px",
+            opacity: showStemDrawer ? 1 : 0,
+            overflow: "hidden",
+            transition: "all 0.3s ease",
+            margin: showStemDrawer ? "16px 4px 16px 16px" : "0",
+            padding: showStemDrawer ? "20px 18px" : "0",
+            display: "flex",
+            flexDirection: "column",
+            gap: "18px",
+            flexShrink: 0,
+            border: showStemDrawer ? "1px solid rgba(232, 93, 159, 0.4)" : "none",
+            background: "rgba(18, 12, 32, 0.88)",
+            backdropFilter: "blur(20px)",
+            borderRadius: "18px",
+          }}
+        >
+          {/* Panel Title */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <SlidersHorizontal size={16} color="var(--maru-accent-pink)" />
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.6px" }}>
+                STEMS &amp; VOCAL SING
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <canvas ref={canvasRef} width={60} height={16} style={{ borderRadius: "4px" }} />
+            </div>
+          </div>
+
+          {/* Stem Preset Buttons */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+            {[
+              { key: "karaoke", label: "🎤 Karaoke" },
+              { key: "duet", label: "👥 Duet (50%)" },
+              { key: "acapella", label: "🎙️ Acapella" },
+              { key: "original", label: "🎵 Original" },
+            ].map((p) => {
+              const isSelected = activeStemPreset === p.key;
+              return (
+                <button
+                  key={p.key}
+                  onClick={() => handleApplyPreset(p.key as any)}
+                  style={{
+                    padding: "7px 8px",
+                    borderRadius: "10px",
+                    background: isSelected ? "rgba(232, 93, 159, 0.3)" : "rgba(255, 255, 255, 0.08)",
+                    border: isSelected ? "1.5px solid var(--maru-accent-pink)" : "1px solid rgba(255, 255, 255, 0.09)",
+                    color: isSelected ? "#ffffff" : "rgba(235, 235, 245, 0.75)",
+                    fontSize: "10.5px",
+                    fontWeight: isSelected ? 800 : 600,
+                    cursor: "pointer",
+                    transition: "all 120ms ease",
+                  }}
+                >
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.08)" }} />
+
+          {/* Direct Studio Karaoke Player Trigger */}
+          {previewAudioUrl && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleToggleInAppAudio}
               style={{
-                marginLeft: "16px",
-                marginRight: "4px",
-                marginTop: "16px",
-                marginBottom: "16px",
-                padding: "20px 18px",
                 display: "flex",
-                flexDirection: "column",
-                gap: "18px",
-                flexShrink: 0,
-                border: "1px solid rgba(232, 93, 159, 0.4)",
-                background: "rgba(18, 12, 32, 0.88)",
-                backdropFilter: "blur(20px)",
-                borderRadius: "18px",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                padding: "9px 14px",
+                borderRadius: "12px",
+                background: isPlayingInAppAudio ? "var(--maru-accent-pink)" : "rgba(232, 93, 159, 0.2)",
+                border: "1px solid var(--maru-accent-pink)",
+                color: "#ffffff",
+                fontWeight: 800,
+                fontSize: "11px",
+                cursor: "pointer",
               }}
             >
-              {/* Panel Title */}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <SlidersHorizontal size={16} color="var(--maru-accent-pink)" />
-                  <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.6px" }}>
-                    STEMS &amp; VOCAL SING
-                  </span>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <canvas ref={canvasRef} width={60} height={16} style={{ borderRadius: "4px" }} />
-                </div>
-              </div>
-
-              {/* Stem Preset Buttons */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-                {[
-                  { key: "karaoke", label: "🎤 Karaoke" },
-                  { key: "duet", label: "👥 Duet (50%)" },
-                  { key: "acapella", label: "🎙️ Acapella" },
-                  { key: "original", label: "🎵 Original" },
-                ].map((p) => {
-                  const isSelected = activeStemPreset === p.key;
-                  return (
-                    <button
-                      key={p.key}
-                      onClick={() => handleApplyPreset(p.key as any)}
-                      style={{
-                        padding: "7px 8px",
-                        borderRadius: "10px",
-                        background: isSelected ? "rgba(232, 93, 159, 0.3)" : "rgba(255, 255, 255, 0.08)",
-                        border: isSelected ? "1.5px solid var(--maru-accent-pink)" : "1px solid rgba(255, 255, 255, 0.09)",
-                        color: isSelected ? "#ffffff" : "rgba(235, 235, 245, 0.75)",
-                        fontSize: "10.5px",
-                        fontWeight: isSelected ? 800 : 600,
-                        cursor: "pointer",
-                        transition: "all 120ms ease",
-                      }}
-                    >
-                      {p.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.08)" }} />
-
-              {/* Live PC Audio Capture Activation */}
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleStartCapture}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  padding: "9px 14px",
-                  borderRadius: "12px",
-                  background: isCapturingAudio ? "rgba(74, 222, 128, 0.2)" : "rgba(232, 93, 159, 0.2)",
-                  border: isCapturingAudio ? "1px solid #4ade80" : "1px solid var(--maru-accent-pink)",
-                  color: isCapturingAudio ? "#4ade80" : "var(--maru-accent-pink)",
-                  fontWeight: 800,
-                  fontSize: "11px",
-                  cursor: "pointer",
-                }}
-              >
-                <Radio size={14} className={isCapturingAudio ? "animate-pulse" : ""} />
-                <span>{isCapturingAudio ? "LIVE AUDIO DSP ACTIVE" : "ACTIVATE LIVE PC AUDIO DSP"}</span>
-              </motion.button>
-
-              {/* 1. Lead Vocals Stem Slider (Apple Music Sing Style) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <Mic2 size={14} color="var(--maru-accent-pink)" />
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#f4f4f9fa" }}>
-                      Lead Vocals
-                    </span>
-                  </div>
-                  <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-pink)" }}>
-                    {vocalLevel === 0 ? "MUTED" : `${vocalLevel}%`}
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={vocalLevel}
-                  onChange={(e) => {
-                    setVocalLevel(parseInt(e.target.value, 10));
-                    setActiveStemPreset("karaoke");
-                  }}
-                  style={{
-                    width: "100%",
-                    accentColor: "var(--maru-accent-pink)",
-                    cursor: "pointer",
-                    height: "6px",
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "rgba(235, 235, 245, 0.45)" }}>
-                  <span>Vocal Off</span>
-                  <span>Sing-Along</span>
-                  <span>Full Lead</span>
-                </div>
-              </div>
-
-              {/* 2. Instrumental Stem Slider */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <Music size={14} color="var(--maru-accent-blue)" />
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#f4f4f9fa" }}>
-                      Instrumental
-                    </span>
-                  </div>
-                  <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-blue)" }}>
-                    {instrumentalLevel}%
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={instrumentalLevel}
-                  onChange={(e) => {
-                    setInstrumentalLevel(parseInt(e.target.value, 10));
-                    setActiveStemPreset("karaoke");
-                  }}
-                  style={{
-                    width: "100%",
-                    accentColor: "var(--maru-accent-blue)",
-                    cursor: "pointer",
-                    height: "6px",
-                  }}
-                />
-              </div>
-
-              {/* 3. Bass & Rhythm Punch Slider */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <Activity size={14} color="#a78bfa" />
-                    <span style={{ fontSize: "12px", fontWeight: 800, color: "#f4f4f9fa" }}>
-                      Bass &amp; Beat Punch
-                    </span>
-                  </div>
-                  <span style={{ fontSize: "11px", fontWeight: 800, color: "#a78bfa" }}>
-                    {bassPunch}%
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={150}
-                  value={bassPunch}
-                  onChange={(e) => {
-                    setBassPunch(parseInt(e.target.value, 10));
-                    setActiveStemPreset("karaoke");
-                  }}
-                  style={{
-                    width: "100%",
-                    accentColor: "#a78bfa",
-                    cursor: "pointer",
-                    height: "6px",
-                  }}
-                />
-              </div>
-
-              {/* Live Status Note */}
-              <div
-                style={{
-                  marginTop: "auto",
-                  padding: "10px 12px",
-                  borderRadius: "12px",
-                  background: "rgba(232, 93, 159, 0.12)",
-                  border: "1px solid rgba(232, 93, 159, 0.3)",
-                  fontSize: "10px",
-                  color: "rgba(235, 235, 245, 0.8)",
-                  lineHeight: "1.4",
-                }}
-              >
-                ✨ Center-channel vocal attenuation active. Click &quot;ACTIVATE LIVE PC AUDIO DSP&quot; or play audio to filter vocals in real-time!
-              </div>
-            </motion.div>
+              {isPlayingInAppAudio ? <Pause size={14} fill="#ffffff" /> : <Play size={14} fill="#ffffff" />}
+              <span>{isPlayingInAppAudio ? "PAUSE IN-APP DSP KARAOKE" : "PLAY IN-APP DSP KARAOKE"}</span>
+            </motion.button>
           )}
-        </AnimatePresence>
+
+          {/* 1. Lead Vocals Stem Slider (Apple Music Sing Style) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Mic2 size={14} color="var(--maru-accent-pink)" />
+                <span style={{ fontSize: "12px", fontWeight: 800, color: "#f4f4f9fa" }}>
+                  Lead Vocals
+                </span>
+              </div>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-pink)" }}>
+                {vocalLevel === 0 ? "MUTED" : `${vocalLevel}%`}
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={vocalLevel}
+              onChange={(e) => {
+                setVocalLevel(parseInt(e.target.value, 10));
+                setActiveStemPreset("karaoke");
+              }}
+              style={{
+                width: "100%",
+                accentColor: "var(--maru-accent-pink)",
+                cursor: "pointer",
+                height: "6px",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", color: "rgba(235, 235, 245, 0.45)" }}>
+              <span>Vocal Off</span>
+              <span>Sing-Along</span>
+              <span>Full Lead</span>
+            </div>
+          </div>
+
+          {/* 2. Instrumental Stem Slider */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Music size={14} color="var(--maru-accent-blue)" />
+                <span style={{ fontSize: "12px", fontWeight: 800, color: "#f4f4f9fa" }}>
+                  Instrumental
+                </span>
+              </div>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-blue)" }}>
+                {instrumentalLevel}%
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={instrumentalLevel}
+              onChange={(e) => {
+                setInstrumentalLevel(parseInt(e.target.value, 10));
+                setActiveStemPreset("karaoke");
+              }}
+              style={{
+                width: "100%",
+                accentColor: "var(--maru-accent-blue)",
+                cursor: "pointer",
+                height: "6px",
+              }}
+            />
+          </div>
+
+          {/* 3. Bass & Rhythm Punch Slider */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <Activity size={14} color="#a78bfa" />
+                <span style={{ fontSize: "12px", fontWeight: 800, color: "#f4f4f9fa" }}>
+                  Bass &amp; Beat Punch
+                </span>
+              </div>
+              <span style={{ fontSize: "11px", fontWeight: 800, color: "#a78bfa" }}>
+                {bassPunch}%
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={150}
+              value={bassPunch}
+              onChange={(e) => {
+                setBassPunch(parseInt(e.target.value, 10));
+                setActiveStemPreset("karaoke");
+              }}
+              style={{
+                width: "100%",
+                accentColor: "#a78bfa",
+                cursor: "pointer",
+                height: "6px",
+              }}
+            />
+          </div>
+
+          {/* Live Status Note */}
+          <div
+            style={{
+              marginTop: "auto",
+              padding: "10px 12px",
+              borderRadius: "12px",
+              background: "rgba(232, 93, 159, 0.12)",
+              border: "1px solid rgba(232, 93, 159, 0.3)",
+              fontSize: "10px",
+              color: "rgba(235, 235, 245, 0.8)",
+              lineHeight: "1.4",
+            }}
+          >
+            ✨ Direct DSP: Pull Lead Vocals slider to 0% to completely mute lead vocals with zero echo or feedback!
+          </div>
+        </div>
       </div>
     </motion.div>
   );
