@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Cast, Volume2, CheckCircle2, RotateCw, Mic, Sliders, Music, Sparkles } from "lucide-react";
+import { Cast, Volume2, CheckCircle2, RotateCw, Mic, Music, Sparkles, Sliders, Radio } from "lucide-react";
 
 export const MarucastScreen: React.FC = () => {
+  const [isBroadcaster, setIsBroadcaster] = useState(false);
   const [pin, setPin] = useState("842 109");
+  const [inputPin, setInputPin] = useState("");
   const [countdown, setCountdown] = useState(120);
   const [isConnected, setIsConnected] = useState(false);
   const [latencyOffset, setLatencyOffset] = useState(0);
   const [karaokeMode, setKaraokeMode] = useState(false);
+  const [audioSourceIsMic, setAudioSourceIsMic] = useState(false);
 
-  // Generate random 6-digit PIN formatted with a space
+  // Generate random 6-digit PIN
   const generateNewPin = () => {
     const p1 = Math.floor(100 + Math.random() * 900);
     const p2 = Math.floor(100 + Math.random() * 900);
@@ -29,267 +32,235 @@ export const MarucastScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const sampleLyrics = [
-    { time: "0:12", text: "Ready for the stage tonight" },
-    { time: "0:18", text: "Dancing through the neon light" },
-    { time: "0:24", text: "Feel the rhythm take control" },
-    { time: "0:30", text: "Lossless audio for the soul", active: true },
-    { time: "0:36", text: "Singing out in perfect sync" },
-    { time: "0:42", text: "Faster than you even think" },
-  ];
-
   return (
     <div
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "24px 32px 40px",
+        padding: "16px 24px 36px",
         display: "flex",
         flexDirection: "column",
-        gap: "24px",
-        maxWidth: "1300px",
+        gap: "16px",
+        maxWidth: "1100px",
         margin: "0 auto",
         width: "100%",
       }}
     >
-      {/* Top Banner */}
+      {/* 1. Master Tile: MARUCAST */}
       <div
         className="glass-card"
         style={{
-          width: "100%",
-          padding: "18px 24px",
+          padding: "18px 20px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          background: "linear-gradient(135deg, rgba(167, 139, 250, 0.15) 0%, rgba(112, 165, 255, 0.08) 100%)",
+          border: isConnected
+            ? "1px solid rgba(232, 93, 159, 0.6)"
+            : "1px solid rgba(255, 255, 255, 0.094)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div
-            style={{
-              width: "44px",
-              height: "44px",
-              borderRadius: "12px",
-              background: "rgba(167, 139, 250, 0.2)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--maru-accent-purple)",
-            }}
-          >
-            <Cast size={24} />
+        <div>
+          <div style={{ fontSize: "15px", fontWeight: 800, color: "#f4f4f9fa" }}>
+            {isBroadcaster ? "MARUCAST BROADCASTER" : "MARUCAST RECEIVER"}
           </div>
-          <div>
-            <div style={{ fontSize: "17px", fontWeight: 800, color: "#fafcff" }}>
-              Marucast Receiver for Windows
-            </div>
-            <div style={{ fontSize: "12.5px", color: "rgba(255, 255, 255, 0.55)", marginTop: "2px" }}>
-              Stream lossless audio & synchronized lyrics directly to your PC speakers from your phone
-            </div>
+          <div style={{ fontSize: "12px", color: "rgba(235, 235, 245, 0.72)", marginTop: "2px" }}>
+            Stream lossless system audio, track metadata, and live lyrics over local Wi-Fi.
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Volume2 size={16} color="var(--maru-success)" />
-          <span style={{ fontSize: "12.5px", fontWeight: 700, color: "var(--maru-success)" }}>
-            PC Speakers Ready
-          </span>
-        </div>
+        <input
+          type="checkbox"
+          checked={isConnected}
+          onChange={(e) => setIsConnected(e.target.checked)}
+          style={{ width: "20px", height: "20px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
+        />
       </div>
 
-      {/* Two-Column Layout */}
-      <div style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "28px", alignItems: "start" }}>
-        {/* Left Column: PIN Pairing & Broadcast Tuning */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {/* 6-Digit PIN Display Card */}
-          <div
-            className="glass-card"
-            style={{
-              padding: "36px 28px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "16px",
-              border: "1.5px solid rgba(167, 139, 250, 0.35)",
-              boxShadow: "0 0 36px rgba(167, 139, 250, 0.18)",
-              background: "linear-gradient(180deg, rgba(22, 27, 46, 0.85) 0%, rgba(15, 19, 34, 0.95) 100%)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "6px 14px",
-                borderRadius: "999px",
-                background: "rgba(167, 139, 250, 0.18)",
-                color: "var(--maru-accent-purple)",
-                fontSize: "12px",
-                fontWeight: 800,
-              }}
-            >
-              <RotateCw size={12} className="animate-spin" />
-              <span>PIN refreshes in {countdown}s</span>
-            </div>
+      {/* Mode Selector Pill: RECEIVER vs BROADCASTER */}
+      <div
+        style={{
+          display: "flex",
+          gap: "4px",
+          padding: "4px",
+          borderRadius: "24px",
+          background: "rgba(24, 18, 43, 0.4)",
+          border: "1px solid rgba(255, 255, 255, 0.094)",
+        }}
+      >
+        <button
+          onClick={() => setIsBroadcaster(false)}
+          style={{
+            flex: 1,
+            padding: "6px 0",
+            borderRadius: "24px",
+            background: !isBroadcaster ? "rgba(232, 93, 159, 0.25)" : "transparent",
+            border: !isBroadcaster ? "1px solid var(--maru-accent-pink)" : "1px solid transparent",
+            color: !isBroadcaster ? "var(--maru-accent-pink)" : "rgba(235, 235, 245, 0.72)",
+            fontSize: "11px",
+            fontWeight: !isBroadcaster ? 800 : 500,
+            cursor: "pointer",
+          }}
+        >
+          RECEIVER (THIS PC AS SPEAKER)
+        </button>
+        <button
+          onClick={() => setIsBroadcaster(true)}
+          style={{
+            flex: 1,
+            padding: "6px 0",
+            borderRadius: "24px",
+            background: isBroadcaster ? "rgba(96, 226, 255, 0.25)" : "transparent",
+            border: isBroadcaster ? "1px solid var(--maru-accent-blue)" : "1px solid transparent",
+            color: isBroadcaster ? "var(--maru-accent-blue)" : "rgba(235, 235, 245, 0.72)",
+            fontSize: "11px",
+            fontWeight: isBroadcaster ? 800 : 500,
+            cursor: "pointer",
+          }}
+        >
+          BROADCASTER (CAST TO PHONE/TV)
+        </button>
+      </div>
 
-            <div
-              style={{
-                fontSize: "48px",
-                fontWeight: 900,
-                letterSpacing: "8px",
-                fontFamily: "monospace",
-                color: "#fafcff",
-                textShadow: "0 0 24px rgba(167, 139, 250, 0.7)",
-                padding: "8px 0",
-              }}
-            >
-              {pin}
-            </div>
-
-            <div
-              style={{
-                fontSize: "13px",
-                color: "rgba(255, 255, 255, 0.6)",
-                textAlign: "center",
-                maxWidth: "340px",
-                lineHeight: 1.5,
-              }}
-            >
-              Open <strong style={{ color: "var(--maru-accent-pink)" }}>MAudio on your phone</strong>, go to Marucast, and enter this PIN to connect.
-            </div>
-
-            <button
-              onClick={generateNewPin}
-              style={{
-                marginTop: "4px",
-                background: "rgba(255, 255, 255, 0.08)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "rgba(255, 255, 255, 0.8)",
-                borderRadius: "999px",
-                padding: "8px 18px",
-                fontSize: "12px",
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              Generate Fresh PIN
-            </button>
-          </div>
-
-          {/* Stream Tuning & Karaoke Controls */}
-          <div className="glass-card" style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div style={{ fontSize: "14.5px", fontWeight: 800, color: "#fafcff" }}>
-              Broadcast Tuning Controls
-            </div>
-
-            {/* Karaoke Vocal Reducer */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <Mic size={18} color="var(--maru-accent-pink)" />
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: 700 }}>Karaoke Vocal Reducer</div>
-                  <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.45)" }}>
-                    Center-channel phase vocal suppression
-                  </div>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={karaokeMode}
-                onChange={(e) => setKaraokeMode(e.target.checked)}
-                style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
-              />
-            </div>
-
-            {/* Latency Tuning Presets */}
-            <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "10px" }}>
-                <span style={{ fontSize: "13px", fontWeight: 700 }}>Lyrics Timing Offset</span>
-                <span style={{ fontSize: "13px", fontWeight: 800, color: "var(--maru-accent-blue)" }}>
-                  {latencyOffset > 0 ? `+${latencyOffset}ms` : `${latencyOffset}ms`}
-                </span>
-              </div>
-              <div style={{ display: "flex", gap: "6px" }}>
-                {[-500, -100, 0, 100, 500].map((offset) => (
-                  <button
-                    key={offset}
-                    onClick={() => setLatencyOffset(offset === 0 ? 0 : latencyOffset + offset)}
-                    style={{
-                      flex: 1,
-                      padding: "6px 0",
-                      borderRadius: "8px",
-                      background: "rgba(255, 255, 255, 0.06)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
-                      color: "#fafcff",
-                      fontSize: "11.5px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {offset === 0 ? "Reset" : offset > 0 ? `+${offset}` : offset}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Live Synced Lyrics Canvas */}
+      {/* Receiver Mode: PIN Display */}
+      {!isBroadcaster && (
         <div
           className="glass-card"
           style={{
-            padding: "28px 24px",
+            padding: "24px",
             display: "flex",
             flexDirection: "column",
-            gap: "18px",
-            minHeight: "440px",
+            alignItems: "center",
+            textAlign: "center",
+            gap: "14px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontSize: "15px", fontWeight: 800, color: "#fafcff" }}>
-              Synchronized Lyrics Canvas
-            </div>
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                padding: "3px 8px",
-                borderRadius: "999px",
-                background: "rgba(112, 165, 255, 0.15)",
-                color: "var(--maru-accent-blue)",
-              }}
-            >
-              LIVE SYNC
-            </div>
+          <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "1px" }}>
+            PAIRING PIN FOR MOBILE APP
           </div>
 
-          {/* Lyrics lines */}
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-              padding: "16px 8px",
-              overflowY: "auto",
-              textAlign: "center",
+              fontSize: "36px",
+              fontWeight: 900,
+              letterSpacing: "6px",
+              fontFamily: "monospace",
+              color: "#f4f4f9fa",
+              padding: "12px 28px",
+              borderRadius: "14px",
+              background: "rgba(0, 0, 0, 0.4)",
+              border: "1.5px solid rgba(232, 93, 159, 0.5)",
+              boxShadow: "0 0 24px rgba(232, 93, 159, 0.2)",
             }}
           >
-            {sampleLyrics.map((line, i) => (
-              <div
-                key={i}
+            {pin}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11.5px", color: "rgba(235, 235, 245, 0.6)" }}>
+            <RotateCw size={13} className="animate-spin" />
+            <span>Refreshes in {countdown}s</span>
+          </div>
+        </div>
+      )}
+
+      {/* Broadcaster Mode: PIN Input */}
+      {isBroadcaster && (
+        <div
+          className="glass-card"
+          style={{
+            padding: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "14px",
+          }}
+        >
+          <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-blue)", letterSpacing: "1px" }}>
+            ENTER RECEIVER PIN
+          </div>
+
+          <input
+            type="text"
+            value={inputPin}
+            onChange={(e) => setInputPin(e.target.value)}
+            placeholder="Enter 6-digit PIN (e.g. 842109)"
+            style={{
+              background: "rgba(0, 0, 0, 0.3)",
+              border: "1px solid rgba(255, 255, 255, 0.1)",
+              borderRadius: "10px",
+              padding: "12px 16px",
+              color: "#f4f4f9fa",
+              fontSize: "16px",
+              fontFamily: "monospace",
+              letterSpacing: "2px",
+              outline: "none",
+            }}
+          />
+
+          <button
+            onClick={() => setIsConnected(true)}
+            style={{
+              padding: "12px",
+              borderRadius: "24px",
+              background: "var(--maru-accent-blue)",
+              border: "none",
+              color: "#050507",
+              fontWeight: 800,
+              fontSize: "12px",
+              cursor: "pointer",
+            }}
+          >
+            CONNECT STREAM
+          </button>
+        </div>
+      )}
+
+      {/* Latency & Tuning Section */}
+      <div className="glass-card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "1px" }}>
+          LATENCY COMPENSATION
+        </div>
+
+        <div style={{ display: "flex", gap: "6px" }}>
+          {[-500, -100, 0, 100, 500].map((offset) => {
+            const isSelected = latencyOffset === offset;
+            return (
+              <button
+                key={offset}
+                onClick={() => setLatencyOffset(offset)}
                 style={{
-                  fontSize: line.active ? "20px" : "15px",
-                  fontWeight: line.active ? 900 : 500,
-                  color: line.active ? "var(--maru-accent-pink)" : "rgba(255, 255, 255, 0.35)",
-                  textShadow: line.active ? "0 0 16px rgba(255, 113, 162, 0.6)" : "none",
-                  transition: "all 300ms ease",
-                  transform: line.active ? "scale(1.05)" : "scale(1)",
+                  flex: 1,
+                  padding: "8px 0",
+                  borderRadius: "10px",
+                  background: isSelected ? "rgba(232, 93, 159, 0.25)" : "rgba(255, 255, 255, 0.08)",
+                  border: isSelected ? "1px solid var(--maru-accent-pink)" : "1px solid rgba(255, 255, 255, 0.08)",
+                  color: isSelected ? "var(--maru-accent-pink)" : "rgba(235, 235, 245, 0.72)",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
                 }}
               >
-                {line.text}
-              </div>
-            ))}
+                {offset > 0 ? `+${offset}ms` : `${offset}ms`}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.094)", margin: "4px 0" }} />
+
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#f4f4f9fa" }}>
+              Karaoke Vocal Suppression
+            </div>
+            <div style={{ fontSize: "11px", color: "rgba(235, 235, 245, 0.6)" }}>
+              Attenuates center-channel lead vocals in real time.
+            </div>
           </div>
+          <input
+            type="checkbox"
+            checked={karaokeMode}
+            onChange={(e) => setKaraokeMode(e.target.checked)}
+            style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
+          />
         </div>
       </div>
     </div>

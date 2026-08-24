@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { RecommendedTrackItem } from "../types";
 import { Sparkles, LayoutList, LayoutGrid, ChevronRight, Disc, RefreshCw } from "lucide-react";
+import { getRecommendations } from "../utils/LastFmRecommendationsEngine";
 
 interface DiscoveryScreenProps {
   username: string;
@@ -12,39 +13,11 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
   const [recommendations, setRecommendations] = useState<RecommendedTrackItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchRecommendations = async () => {
+  const fetchFeed = async () => {
     setIsLoading(true);
     try {
-      // Fetch recent tracks to seed contextual recommendations
-      const res = await fetch(
-        `https://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${encodeURIComponent(
-          username || "JmDemisana",
-        )}&api_key=4a9f5581a9bc20a6e16ffc0e4487c096&format=json&limit=16&period=7day`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const raw = data.toptracks?.track || [];
-        const items: RecommendedTrackItem[] = raw.map((t: any, idx: number) => {
-          const img =
-            t.image?.find((i: any) => i.size === "extralarge")?.["#text"] ||
-            t.image?.find((i: any) => i.size === "large")?.["#text"] ||
-            "";
-          const reasons = [
-            `Top track in your 7D rotation (#${idx + 1})`,
-            `Because you listen to ${t.artist?.name || "Vocaloid"}`,
-            `Frequently played this week`,
-            `Recommended from your recent charts`,
-          ];
-          return {
-            title: t.name,
-            artist: t.artist?.name || "Unknown Artist",
-            reason: reasons[idx % reasons.length],
-            artworkUrl: img,
-            effectiveArtworkUrl: img,
-          };
-        });
-        setRecommendations(items);
-      }
+      const items = await getRecommendations(username);
+      setRecommendations(items);
     } catch (e) {
       console.error(e);
     } finally {
@@ -53,7 +26,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
   };
 
   useEffect(() => {
-    fetchRecommendations();
+    fetchFeed();
   }, [username]);
 
   return (
@@ -94,30 +67,53 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           </span>
         </div>
 
-        {/* LIST / GRID Toggle Pill */}
-        <button
-          onClick={() => setIsGridView(!isGridView)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            padding: "4px 10px",
-            borderRadius: "24px",
-            background: "rgba(255, 255, 255, 0.1)",
-            border: "1px solid rgba(255, 255, 255, 0.094)",
-            color: "#f4f4f9fa",
-            cursor: "pointer",
-            fontSize: "9.5px",
-            fontWeight: 800,
-          }}
-        >
-          {isGridView ? (
-            <LayoutList size={14} color="var(--maru-accent-pink)" />
-          ) : (
-            <LayoutGrid size={14} color="var(--maru-accent-pink)" />
-          )}
-          <span>{isGridView ? "LIST" : "GRID"}</span>
-        </button>
+        {/* Refresh & LIST / GRID Toggle Pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            onClick={fetchFeed}
+            disabled={isLoading}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 10px",
+              borderRadius: "24px",
+              background: "rgba(255, 255, 255, 0.1)",
+              border: "1px solid rgba(255, 255, 255, 0.094)",
+              color: "#f4f4f9fa",
+              cursor: "pointer",
+              fontSize: "9.5px",
+              fontWeight: 800,
+            }}
+          >
+            <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} color="var(--maru-accent-pink)" />
+            <span>REFRESH</span>
+          </button>
+
+          <button
+            onClick={() => setIsGridView(!isGridView)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 10px",
+              borderRadius: "24px",
+              background: "rgba(255, 255, 255, 0.1)",
+              border: "1px solid rgba(255, 255, 255, 0.094)",
+              color: "#f4f4f9fa",
+              cursor: "pointer",
+              fontSize: "9.5px",
+              fontWeight: 800,
+            }}
+          >
+            {isGridView ? (
+              <LayoutList size={14} color="var(--maru-accent-pink)" />
+            ) : (
+              <LayoutGrid size={14} color="var(--maru-accent-pink)" />
+            )}
+            <span>{isGridView ? "LIST" : "GRID"}</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. Loading State */}
@@ -134,7 +130,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
         >
           <RefreshCw size={32} className="animate-spin" color="var(--maru-accent-pink)" />
           <span style={{ fontSize: "13px", color: "rgba(235, 235, 245, 0.72)" }}>
-            Curating personalized recommendations...
+            Curating personalized recommendations from Last.fm...
           </span>
         </div>
       )}
@@ -157,7 +153,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
             No recommendations found
           </div>
           <div style={{ fontSize: "12px", color: "rgba(235, 235, 245, 0.6)" }}>
-            Check your Last.fm scrobbler settings or refresh your feed!
+            Scrobble some music or change your Last.fm username in Profile!
           </div>
         </div>
       )}
@@ -199,7 +195,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
                     alt={item.title}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://lastfm.freetls.fastly.net/i/u/64s/4128a6eb29f94943c9d206c08e625904.png";
+                      (e.target as HTMLImageElement).src =
+                        "https://lastfm.freetls.fastly.net/i/u/64s/4128a6eb29f94943c9d206c08e625904.png";
                     }}
                   />
                 ) : (
@@ -279,7 +276,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
                     alt={item.title}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://lastfm.freetls.fastly.net/i/u/300x300/4128a6eb29f94943c9d206c08e625904.png";
+                      (e.target as HTMLImageElement).src =
+                        "https://lastfm.freetls.fastly.net/i/u/300x300/4128a6eb29f94943c9d206c08e625904.png";
                     }}
                   />
                 ) : (

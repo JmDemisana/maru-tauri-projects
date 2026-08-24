@@ -1,98 +1,282 @@
-import { LastfmTrack, LastfmProfile, TimePeriod } from "../types";
+import { LastfmProfile, LastfmTrack, TimePeriod, RecommendedTrackItem } from "../types";
 
-const LASTFM_API_KEY = "3a2d5930e1dfd49ecfa3898863db2583";
-const DEFAULT_USER = "Maru-Chan";
+export const LASTFM_API_KEY = "5b573acce360566bf0ca66ab4a020e77";
+export const LASTFM_SECRET = "e4c8eca5ba52e4f1fa25c5a95d48b486";
+const BASE_URL = "https://ws.audioscrobbler.com/2.0/";
 
-export async function fetchLastfmProfile(username: string = DEFAULT_USER): Promise<LastfmProfile> {
+// Simple MD5 implementation in pure JS
+function md5(str: string): string {
+  function safeAdd(x: number, y: number): number {
+    const lsw = (x & 0xffff) + (y & 0xffff);
+    const msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+    return (msw << 16) | (lsw & 0xffff);
+  }
+  function bitRotateLeft(num: number, cnt: number): number {
+    return (num << cnt) | (num >>> (32 - cnt));
+  }
+  function md5cmn(q: number, a: number, b: number, x: number, s: number, t: number): number {
+    return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
+  }
+  function md5ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return md5cmn((b & c) | (~b & d), a, b, x, s, t);
+  }
+  function md5gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return md5cmn((b & d) | (c & ~d), a, b, x, s, t);
+  }
+  function md5hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return md5cmn(b ^ c ^ d, a, b, x, s, t);
+  }
+  function md5ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return md5cmn(c ^ (b | ~d), a, b, x, s, t);
+  }
+
+  const utf8 = unescape(encodeURIComponent(str));
+  const words: number[] = [];
+  for (let i = 0; i < utf8.length * 8; i += 8) {
+    words[i >> 5] |= (utf8.charCodeAt(i / 8) & 0xff) << (i % 32);
+  }
+  words[((utf8.length + 8) >> 6) * 16 + 14] = utf8.length * 8;
+
+  let a = 1732584193;
+  let b = -271733879;
+  let c = -1732584194;
+  let d = 271733878;
+
+  for (let i = 0; i < words.length; i += 16) {
+    const olda = a;
+    const oldb = b;
+    const oldc = c;
+    const oldd = d;
+
+    a = md5ff(a, b, c, d, words[i + 0] || 0, 7, -680876936);
+    d = md5ff(d, a, b, c, words[i + 1] || 0, 12, -389564586);
+    c = md5ff(c, d, a, b, words[i + 2] || 0, 17, 606105819);
+    b = md5ff(b, c, d, a, words[i + 3] || 0, 22, -1044525330);
+    a = md5ff(a, b, c, d, words[i + 4] || 0, 7, -176418897);
+    d = md5ff(d, a, b, c, words[i + 5] || 0, 12, 1200080426);
+    c = md5ff(c, d, a, b, words[i + 6] || 0, 17, -1473231341);
+    b = md5ff(b, c, d, a, words[i + 7] || 0, 22, -45705983);
+    a = md5ff(a, b, c, d, words[i + 8] || 0, 7, 1770035416);
+    d = md5ff(d, a, b, c, words[i + 9] || 0, 12, -1958414417);
+    c = md5ff(c, d, a, b, words[i + 10] || 0, 17, -42063);
+    b = md5ff(b, c, d, a, words[i + 11] || 0, 22, -1990404162);
+    a = md5ff(a, b, c, d, words[i + 12] || 0, 7, 1804603682);
+    d = md5ff(d, a, b, c, words[i + 13] || 0, 12, -40341101);
+    c = md5ff(c, d, a, b, words[i + 14] || 0, 17, -1502002290);
+    b = md5ff(b, c, d, a, words[i + 15] || 0, 22, 1236535329);
+
+    a = md5gg(a, b, c, d, words[i + 1] || 0, 5, -165796510);
+    d = md5gg(d, a, b, c, words[i + 6] || 0, 9, -1069501632);
+    c = md5gg(c, d, a, b, words[i + 11] || 0, 14, 643717713);
+    b = md5gg(b, c, d, a, words[i + 0] || 0, 20, -373897302);
+    a = md5gg(a, b, c, d, words[i + 5] || 0, 5, -701558691);
+    d = md5gg(d, a, b, c, words[i + 10] || 0, 9, 38016083);
+    c = md5gg(c, d, a, b, words[i + 15] || 0, 14, -660478335);
+    b = md5gg(b, c, d, a, words[i + 4] || 0, 20, -405537848);
+    a = md5gg(a, b, c, d, words[i + 9] || 0, 5, 568446438);
+    d = md5gg(d, a, b, c, words[i + 14] || 0, 9, -1019803690);
+    c = md5gg(c, d, a, b, words[i + 3] || 0, 14, -187363961);
+    b = md5gg(b, c, d, a, words[i + 8] || 0, 20, 1163531501);
+    a = md5gg(a, b, c, d, words[i + 13] || 0, 5, -1444681467);
+    d = md5gg(d, a, b, c, words[i + 2] || 0, 9, -51403784);
+    c = md5gg(c, d, a, b, words[i + 7] || 0, 14, 1735328473);
+    b = md5gg(b, c, d, a, words[i + 12] || 0, 20, -1926607734);
+
+    a = md5hh(a, b, c, d, words[i + 5] || 0, 4, -378558);
+    d = md5hh(d, a, b, c, words[i + 8] || 0, 11, -2022574463);
+    c = md5hh(c, d, a, b, words[i + 11] || 0, 16, 1839030562);
+    b = md5hh(b, c, d, a, words[i + 14] || 0, 23, -35309556);
+    a = md5hh(a, b, c, d, words[i + 1] || 0, 4, -1530992060);
+    d = md5hh(d, a, b, c, words[i + 4] || 0, 11, 1272893353);
+    c = md5hh(c, d, a, b, words[i + 7] || 0, 16, -155497632);
+    b = md5hh(b, c, d, a, words[i + 10] || 0, 23, -1094730640);
+    a = md5hh(a, b, c, d, words[i + 13] || 0, 4, 681279174);
+    d = md5hh(d, a, b, c, words[i + 0] || 0, 11, -358537222);
+    c = md5hh(c, d, a, b, words[i + 3] || 0, 16, -722521979);
+    b = md5hh(b, c, d, a, words[i + 6] || 0, 23, 76029189);
+    a = md5hh(a, b, c, d, words[i + 9] || 0, 4, -640364487);
+    d = md5hh(d, a, b, c, words[i + 12] || 0, 11, -421815835);
+    c = md5hh(c, d, a, b, words[i + 15] || 0, 16, 530742520);
+    b = md5hh(b, c, d, a, words[i + 2] || 0, 23, -995338651);
+
+    a = md5ii(a, b, c, d, words[i + 0] || 0, 6, -198630844);
+    d = md5ii(d, a, b, c, words[i + 7] || 0, 10, 1126891415);
+    c = md5ii(c, d, a, b, words[i + 14] || 0, 15, -1416354905);
+    b = md5ii(b, c, d, a, words[i + 5] || 0, 21, -57434055);
+    a = md5ii(a, b, c, d, words[i + 12] || 0, 6, 1700485571);
+    d = md5ii(d, a, b, c, words[i + 3] || 0, 10, -1894986606);
+    c = md5ii(c, d, a, b, words[i + 10] || 0, 15, -1051523);
+    b = md5ii(b, c, d, a, words[i + 1] || 0, 21, -2054922799);
+    a = md5ii(a, b, c, d, words[i + 8] || 0, 6, 1873313359);
+    d = md5ii(d, a, b, c, words[i + 15] || 0, 10, -30611744);
+    c = md5ii(c, d, a, b, words[i + 6] || 0, 15, -1560198380);
+    b = md5ii(b, c, d, a, words[i + 13] || 0, 21, 1309151649);
+    a = md5ii(a, b, c, d, words[i + 4] || 0, 6, -145523070);
+    d = md5ii(d, a, b, c, words[i + 11] || 0, 10, -1120210379);
+    c = md5ii(c, d, a, b, words[i + 2] || 0, 15, 718787259);
+    b = md5ii(b, c, d, a, words[i + 9] || 0, 21, -343485551);
+
+    a = safeAdd(a, olda);
+    b = safeAdd(b, oldb);
+    c = safeAdd(c, oldc);
+    d = safeAdd(d, oldd);
+  }
+
+  const hexDigits = "0123456789abcdef";
+  let hex = "";
+  for (const n of [a, b, c, d]) {
+    for (let i = 0; i < 4; i++) {
+      const byte = (n >> (i * 8)) & 0xff;
+      hex += hexDigits.charAt((byte >> 4) & 0x0f) + hexDigits.charAt(byte & 0x0f);
+    }
+  }
+  return hex;
+}
+
+export function generateApiSignature(params: Record<string, string>): string {
+  const keys = Object.keys(params).filter((k) => k !== "format" && k !== "api_sig").sort();
+  let str = "";
+  for (const k of keys) {
+    str += `${k}${params[k]}`;
+  }
+  str += LASTFM_SECRET;
+  return md5(str);
+}
+
+export async function fetchLastfmProfile(username: string): Promise<LastfmProfile> {
+  const user = username.trim() || "JmDemisana";
+  const url = `${BASE_URL}?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${LASTFM_API_KEY}&format=json`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch profile: ${res.statusText}`);
+  }
+  const data = await res.json();
+  const u = data.user;
+  const avatar = u?.image?.find((i: any) => i.size === "large")?.["#text"] || "";
+  return {
+    username: u?.name || user,
+    realName: u?.realname,
+    avatarUrl: avatar,
+    totalScrobbles: parseInt(u?.playcount || "0", 10),
+    artistCount: parseInt(u?.artist_count || "0", 10),
+    trackCount: parseInt(u?.track_count || "0", 10),
+  };
+}
+
+export async function fetchRecentTracks(username: string, limit = 20): Promise<LastfmTrack[]> {
+  const user = username.trim() || "JmDemisana";
+  const url = `${BASE_URL}?method=user.getrecenttracks&user=${encodeURIComponent(user)}&api_key=${LASTFM_API_KEY}&format=json&limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch recent tracks: ${res.statusText}`);
+  }
+  const data = await res.json();
+  const tracks = data.recenttracks?.track || [];
+  return tracks.map((t: any) => {
+    const isNow = t["@attr"]?.nowplaying === "true";
+    const img =
+      t.image?.find((i: any) => i.size === "extralarge")?.["#text"] ||
+      t.image?.find((i: any) => i.size === "large")?.["#text"] ||
+      "";
+    return {
+      name: t.name,
+      artist: typeof t.artist === "string" ? t.artist : t.artist?.["#text"] || t.artist?.name || "",
+      album: typeof t.album === "string" ? t.album : t.album?.["#text"] || "",
+      image: img,
+      nowPlaying: isNow,
+      date: isNow ? "Now Playing" : t.date?.["#text"] || "Recent",
+      url: t.url,
+    };
+  });
+}
+
+export async function fetchTopArtists(username: string, period: TimePeriod): Promise<{ name: string; playcount: number; image: string }[]> {
+  const user = username.trim() || "JmDemisana";
+  const periodMap: Record<TimePeriod, string> = {
+    "7D": "7day",
+    "1M": "1month",
+    "3M": "3month",
+    "1Y": "12month",
+    ALL: "overall",
+  };
+  const url = `${BASE_URL}?method=user.gettopartists&user=${encodeURIComponent(user)}&api_key=${LASTFM_API_KEY}&format=json&limit=10&period=${periodMap[period]}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  const artists = data.topartists?.artist || [];
+  return artists.map((a: any) => ({
+    name: a.name,
+    playcount: parseInt(a.playcount || "0", 10),
+    image: a.image?.find((i: any) => i.size === "large")?.["#text"] || "",
+  }));
+}
+
+export async function scrobbleTrack(artist: string, track: string, album: string | null, sessionKey: string): Promise<boolean> {
+  if (!artist || !track || !sessionKey) return false;
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const params: Record<string, string> = {
+    api_key: LASTFM_API_KEY,
+    method: "track.scrobble",
+    artist: artist.trim(),
+    track: track.trim(),
+    timestamp,
+    sk: sessionKey.trim(),
+  };
+  if (album) {
+    params.album = album.trim();
+  }
+  const api_sig = generateApiSignature(params);
+  params.api_sig = api_sig;
+  params.format = "json";
+
+  const form = new URLSearchParams();
+  for (const k of Object.keys(params)) {
+    form.append(k, params[k]);
+  }
+
   try {
-    const url = `https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(
-      username,
-    )}&api_key=${LASTFM_API_KEY}&format=json`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch profile");
-    const data = await res.json();
-    const user = data.user;
-    const images = user.image || [];
-    const avatar = images[images.length - 1]?.["#text"] || "";
-
-    return {
-      username: user.name,
-      realName: user.realname || user.name,
-      avatarUrl: avatar,
-      totalScrobbles: parseInt(user.playcount || "0", 10),
-      artistCount: parseInt(user.artist_count || "0", 10),
-      trackCount: parseInt(user.track_count || "0", 10),
-    };
+    const res = await fetch(BASE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
+    });
+    return res.ok;
   } catch (e) {
-    console.error("Last.fm profile fetch error:", e);
-    return {
-      username,
-      totalScrobbles: 0,
-    };
+    console.error("Scrobble failed:", e);
+    return false;
   }
 }
 
-export async function fetchRecentTracks(username: string = DEFAULT_USER, limit: number = 20): Promise<LastfmTrack[]> {
-  try {
-    const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(
-      username,
-    )}&api_key=${LASTFM_API_KEY}&format=json&limit=${limit}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch recent tracks");
-    const data = await res.json();
-    const tracks = data.recenttracks?.track || [];
-    const list = Array.isArray(tracks) ? tracks : [tracks];
-
-    return list.map((t: any) => {
-      const images = t.image || [];
-      const img = images[images.length - 1]?.["#text"] || "";
-      const isNowPlaying = t["@attr"]?.nowplaying === "true";
-      return {
-        name: t.name || "Unknown Track",
-        artist: t.artist?.["#text"] || t.artist?.name || "Unknown Artist",
-        album: t.album?.["#text"] || "",
-        image: img,
-        nowPlaying: isNowPlaying,
-        date: t.date?.["#text"] || (isNowPlaying ? "Scrobbling now" : ""),
-        url: t.url,
-      };
-    });
-  } catch (e) {
-    console.error("Last.fm recent tracks fetch error:", e);
-    return [];
+export async function updateNowPlaying(artist: string, track: string, album: string | null, sessionKey: string): Promise<boolean> {
+  if (!artist || !track || !sessionKey) return false;
+  const params: Record<string, string> = {
+    api_key: LASTFM_API_KEY,
+    method: "track.updateNowPlaying",
+    artist: artist.trim(),
+    track: track.trim(),
+    sk: sessionKey.trim(),
+  };
+  if (album) {
+    params.album = album.trim();
   }
-}
+  const api_sig = generateApiSignature(params);
+  params.api_sig = api_sig;
+  params.format = "json";
 
-export async function fetchTopArtists(username: string = DEFAULT_USER, period: TimePeriod = "7D"): Promise<{ name: string; playcount: number; image: string }[]> {
+  const form = new URLSearchParams();
+  for (const k of Object.keys(params)) {
+    form.append(k, params[k]);
+  }
+
   try {
-    const periodMap: Record<TimePeriod, string> = {
-      "7D": "7day",
-      "1M": "1month",
-      "3M": "3month",
-      "1Y": "12month",
-      "ALL": "overall",
-    };
-    const p = periodMap[period] || "7day";
-    const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${encodeURIComponent(
-      username,
-    )}&api_key=${LASTFM_API_KEY}&format=json&period=${p}&limit=5`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch top artists");
-    const data = await res.json();
-    const artists = data.topartists?.artist || [];
-    const list = Array.isArray(artists) ? artists : [artists];
-
-    return list.map((a: any) => {
-      const images = a.image || [];
-      const img = images[images.length - 1]?.["#text"] || "";
-      return {
-        name: a.name,
-        playcount: parseInt(a.playcount || "0", 10),
-        image: img,
-      };
+    const res = await fetch(BASE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: form.toString(),
     });
+    return res.ok;
   } catch (e) {
-    console.error("Last.fm top artists fetch error:", e);
-    return [];
+    console.error("NowPlaying update failed:", e);
+    return false;
   }
 }

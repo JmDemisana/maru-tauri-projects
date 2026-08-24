@@ -31,19 +31,51 @@ impl Default for MediaState {
 pub mod windows_impl {
     use super::MediaState;
     use windows::Media::Control::{
+        GlobalSystemMediaTransportControlsSession,
         GlobalSystemMediaTransportControlsSessionManager,
         GlobalSystemMediaTransportControlsSessionPlaybackStatus,
     };
     use windows::Storage::Streams::{DataReader, InputStreamOptions};
 
     pub async fn get_current_media_state() -> Result<MediaState, String> {
-        let manager_op = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
-            .map_err(|e| e.to_string())?;
-        let manager = manager_op.get().map_err(|e| e.to_string())?;
+        let manager_op = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync() {
+            Ok(op) => op,
+            Err(e) => return Err(e.to_string()),
+        };
+        let manager = match manager_op.get() {
+            Ok(m) => m,
+            Err(e) => return Err(e.to_string()),
+        };
 
-        let session = match manager.GetCurrentSession() {
-            Ok(s) => s,
-            Err(_) => return Ok(MediaState::default()),
+        // Try getting current session, or fallback to first active playing session in GetSessions()
+        let session: Option<GlobalSystemMediaTransportControlsSession> = if let Ok(s) = manager.GetCurrentSession() {
+            Some(s)
+        } else if let Ok(sessions) = manager.GetSessions() {
+            let mut playing_session = None;
+            let mut fallback_session = None;
+            if let Ok(count) = sessions.Size() {
+                for i in 0..count {
+                    if let Ok(s) = sessions.GetAt(i) {
+                        if let Ok(info) = s.GetPlaybackInfo() {
+                            if info.PlaybackStatus() == Ok(GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing) {
+                                playing_session = Some(s);
+                                break;
+                            }
+                        }
+                        if fallback_session.is_none() {
+                            fallback_session = Some(s);
+                        }
+                    }
+                }
+            }
+            playing_session.or(fallback_session)
+        } else {
+            None
+        };
+
+        let session = match session {
+            Some(s) => s,
+            None => return Ok(MediaState::default()),
         };
 
         let app_id = session.SourceAppUserModelId().map(|h| h.to_string()).ok();
@@ -62,10 +94,14 @@ pub mod windows_impl {
             (None, None)
         };
 
-        let props_op = session
-            .TryGetMediaPropertiesAsync()
-            .map_err(|e| e.to_string())?;
-        let props = props_op.get().map_err(|e| e.to_string())?;
+        let props_op = match session.TryGetMediaPropertiesAsync() {
+            Ok(op) => op,
+            Err(_) => return Ok(MediaState::default()),
+        };
+        let props = match props_op.get() {
+            Ok(p) => p,
+            Err(_) => return Ok(MediaState::default()),
+        };
 
         let title = props.Title().map(|h| h.to_string()).ok().filter(|s| !s.is_empty());
         let artist = props.Artist().map(|h| h.to_string()).ok().filter(|s| !s.is_empty());
@@ -113,9 +149,25 @@ pub mod windows_impl {
             .map_err(|e| e.to_string())?;
         let manager = manager_op.get().map_err(|e| e.to_string())?;
 
-        let session = match manager.GetCurrentSession() {
-            Ok(s) => s,
-            Err(_) => return Ok(false),
+        let session = if let Ok(s) = manager.GetCurrentSession() {
+            Some(s)
+        } else if let Ok(sessions) = manager.GetSessions() {
+            if let Ok(count) = sessions.Size() {
+                if count > 0 {
+                    sessions.GetAt(0).ok()
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let session = match session {
+            Some(s) => s,
+            None => return Ok(false),
         };
 
         match command {

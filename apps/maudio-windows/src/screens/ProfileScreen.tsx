@@ -1,244 +1,358 @@
 import React, { useState, useEffect } from "react";
-import { LastfmProfile, TimePeriod } from "../types";
-import { fetchLastfmProfile, fetchTopArtists } from "../utils/lastfmApi";
-import { User, Sparkles, TrendingUp, Music, Disc, Calendar, ArrowLeft } from "lucide-react";
+import { LastfmProfile, TimePeriod, LastfmTrack, SongDetailState } from "../types";
+import { fetchLastfmProfile, fetchRecentTracks, LASTFM_API_KEY } from "../utils/lastfmApi";
+import { User, History, Users, Disc, ArrowLeft, RefreshCw, BarChart2 } from "lucide-react";
 
 interface ProfileScreenProps {
   username: string;
   onBack?: () => void;
+  onSongClick?: (song: SongDetailState) => void;
 }
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, onSongClick }) => {
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
-  const [period, setPeriod] = useState<TimePeriod>("7D");
-  const [topArtists, setTopArtists] = useState<{ name: string; playcount: number; image: string }[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("7day");
+  const [recentTracks, setRecentTracks] = useState<LastfmTrack[]>([]);
+  const [topTracks, setTopTracks] = useState<any[]>([]);
+  const [topArtists, setTopArtists] = useState<any[]>([]);
+  const [topAlbums, setTopAlbums] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const periods = [
+    { key: "7day", label: "7D" },
+    { key: "1month", label: "1M" },
+    { key: "3month", label: "3M" },
+    { key: "12month", label: "1Y" },
+    { key: "overall", label: "ALL" },
+  ];
+
+  const loadData = async () => {
     setIsLoading(true);
-    Promise.all([
-      fetchLastfmProfile(username),
-      fetchTopArtists(username, period),
-    ]).then(([p, a]) => {
-      setProfile(p);
-      setTopArtists(a);
+    const u = username.trim() || "JmDemisana";
+
+    try {
+      const [prof, recents, resTTracks, resTArtists, resTAlbums] = await Promise.all([
+        fetchLastfmProfile(u),
+        fetchRecentTracks(u, 12),
+        fetch(`https://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${encodeURIComponent(u)}&api_key=${LASTFM_API_KEY}&format=json&limit=8&period=${selectedPeriod}`),
+        fetch(`https://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${encodeURIComponent(u)}&api_key=${LASTFM_API_KEY}&format=json&limit=6&period=${selectedPeriod}`),
+        fetch(`https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=${encodeURIComponent(u)}&api_key=${LASTFM_API_KEY}&format=json&limit=4&period=${selectedPeriod}`),
+      ]);
+
+      setProfile(prof);
+      setRecentTracks(recents);
+
+      const dTT = await resTTracks.json();
+      const dTA = await resTArtists.json();
+      const dTab = await resTAlbums.json();
+
+      setTopTracks(dTT.toptracks?.track || []);
+      setTopArtists(dTA.topartists?.artist || []);
+      setTopAlbums(dTab.topalbums?.album || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
       setIsLoading(false);
-    });
-  }, [username, period]);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [username, selectedPeriod]);
 
   return (
     <div
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "24px 32px 40px",
+        padding: "16px 24px 36px",
         display: "flex",
         flexDirection: "column",
-        gap: "24px",
-        maxWidth: "1200px",
+        gap: "16px",
+        maxWidth: "1100px",
         margin: "0 auto",
         width: "100%",
       }}
     >
-      {/* Top Bar with optional Back */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        {onBack && (
-          <button
-            onClick={onBack}
-            style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
-              borderRadius: "10px",
-              width: "36px",
-              height: "36px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fafcff",
-              cursor: "pointer",
-            }}
-          >
-            <ArrowLeft size={18} />
-          </button>
-        )}
-        <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#fafcff", letterSpacing: "0.4px" }}>
-          Listener Profile
-        </h2>
-      </div>
-
-      {/* Hero Profile Banner Card */}
+      {/* 1. Profile Header Card */}
       <div
         className="glass-card"
         style={{
-          padding: "28px 32px",
+          padding: "24px",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          gap: "28px",
-          position: "relative",
-          background: "linear-gradient(135deg, rgba(255, 113, 162, 0.15) 0%, rgba(112, 165, 255, 0.1) 100%)",
+          textAlign: "center",
+          border: "1px solid rgba(232, 93, 159, 0.4)",
         }}
       >
         <div
           style={{
-            position: "relative",
-            width: "90px",
-            height: "90px",
+            width: "80px",
+            height: "80px",
             borderRadius: "50%",
-            padding: "3px",
-            background: "linear-gradient(135deg, #ff71a2, #70a5ff)",
-            boxShadow: "0 0 28px rgba(255, 113, 162, 0.5)",
-            flexShrink: 0,
+            background: "rgba(255, 255, 255, 0.1)",
+            border: "2.5px solid var(--maru-accent-pink)",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 0 20px rgba(232, 93, 159, 0.3)",
           }}
         >
-          <img
-            src={profile?.avatarUrl || "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png"}
-            alt="Avatar"
-            style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://lastfm.freetls.fastly.net/i/u/avatar170s/818148bf682d429dc215c1705eb27b98.png";
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              bottom: "0px",
-              right: "0px",
-              width: "24px",
-              height: "24px",
-              borderRadius: "50%",
-              backgroundColor: "#4ade80",
-              border: "3px solid #070a13",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Sparkles size={11} color="#070a13" />
-          </div>
+          {profile?.avatarUrl ? (
+            <img src={profile.avatarUrl} alt="Avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            <User size={40} color="var(--maru-accent-pink)" />
+          )}
         </div>
 
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: "24px", fontWeight: 900, color: "#fafcff" }}>
-            {profile?.username || username}
-          </div>
-          <div style={{ fontSize: "14px", color: "var(--maru-accent-pink)", fontWeight: 700, marginTop: "4px" }}>
-            Last.fm Member
-          </div>
+        <div style={{ fontSize: "20px", fontWeight: 800, color: "#f4f4f9fa", marginTop: "12px" }}>
+          {profile?.username || username}
+        </div>
 
-          <div style={{ display: "flex", gap: "24px", marginTop: "16px", flexWrap: "wrap" }}>
-            <div>
-              <div style={{ fontSize: "20px", fontWeight: 900, color: "var(--maru-accent-pink)" }}>
-                {profile ? profile.totalScrobbles.toLocaleString() : "..."}
+        {profile?.realName && (
+          <div style={{ fontSize: "12px", color: "rgba(235, 235, 245, 0.72)", marginTop: "2px" }}>
+            {profile.realName}
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: "10px",
+            padding: "4px 14px",
+            borderRadius: "24px",
+            background: "rgba(232, 93, 159, 0.18)",
+            border: "1px solid rgba(232, 93, 159, 0.5)",
+            fontSize: "11.5px",
+            fontWeight: 800,
+            color: "var(--maru-accent-pink)",
+          }}
+        >
+          {(profile?.totalScrobbles || 0).toLocaleString()} total scrobbles
+        </div>
+      </div>
+
+      {/* 2. Period Selector Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: "4px",
+          padding: "4px",
+          borderRadius: "24px",
+          background: "rgba(24, 18, 43, 0.4)",
+          border: "1px solid rgba(255, 255, 255, 0.094)",
+        }}
+      >
+        {periods.map(({ key, label }) => {
+          const isSelected = selectedPeriod === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setSelectedPeriod(key)}
+              style={{
+                flex: 1,
+                padding: "6px 0",
+                borderRadius: "24px",
+                background: isSelected ? "rgba(232, 93, 159, 0.25)" : "transparent",
+                border: isSelected ? "1px solid var(--maru-accent-pink)" : "1px solid transparent",
+                color: isSelected ? "var(--maru-accent-pink)" : "rgba(235, 235, 245, 0.72)",
+                fontSize: "11px",
+                fontWeight: isSelected ? 800 : 500,
+                cursor: "pointer",
+                transition: "all 120ms ease",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 3. RECENT SCROBBLES */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px" }}>
+        <History size={15} color="var(--maru-accent-pink)" />
+        <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
+          RECENT SCROBBLES ({recentTracks.length})
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {recentTracks.map((track, idx) => (
+          <div
+            key={idx}
+            onClick={() =>
+              onSongClick?.({
+                title: track.name,
+                artist: track.artist,
+                album: track.album,
+                artworkUrl: track.image,
+              })
+            }
+            className="glass-card"
+            style={{
+              padding: "12px 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              cursor: "pointer",
+              border: track.nowPlaying ? "1px solid rgba(232, 93, 159, 0.6)" : "1px solid rgba(255, 255, 255, 0.094)",
+            }}
+          >
+            <img
+              src={track.image || "https://lastfm.freetls.fastly.net/i/u/64s/4128a6eb29f94943c9d206c08e625904.png"}
+              alt={track.name}
+              style={{ width: "44px", height: "44px", borderRadius: "8px", objectFit: "cover" }}
+            />
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#f4f4f9fa", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {track.name}
               </div>
-              <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginTop: "2px" }}>
-                Total Scrobbles
+              <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.72)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "2px" }}>
+                {track.artist} {track.album ? `• ${track.album}` : ""}
               </div>
             </div>
 
-            {profile?.artistCount && (
-              <div>
-                <div style={{ fontSize: "20px", fontWeight: 900, color: "var(--maru-accent-blue)" }}>
-                  {profile.artistCount.toLocaleString()}
-                </div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginTop: "2px" }}>
-                  Unique Artists
-                </div>
-              </div>
-            )}
-
-            {profile?.trackCount && (
-              <div>
-                <div style={{ fontSize: "20px", fontWeight: 900, color: "var(--maru-accent-purple)" }}>
-                  {profile.trackCount.toLocaleString()}
-                </div>
-                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", marginTop: "2px" }}>
-                  Tracks Played
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Listening Period Trends */}
-      <div className="glass-card" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "16px", fontWeight: 800 }}>
-            <TrendingUp size={18} color="var(--maru-accent-blue)" />
-            <span>Top Artists in Selected Period</span>
-          </div>
-
-          <div style={{ display: "flex", gap: "6px", background: "rgba(255,255,255,0.06)", padding: "3px", borderRadius: "999px" }}>
-            {(["7D", "1M", "3M", "1Y", "ALL"] as TimePeriod[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
+            {track.nowPlaying ? (
+              <div
                 style={{
-                  background: period === p ? "var(--maru-accent-pink)" : "transparent",
-                  color: period === p ? "#070a13" : "rgba(255,255,255,0.65)",
-                  fontWeight: period === p ? 800 : 600,
-                  fontSize: "12px",
-                  border: "none",
-                  borderRadius: "999px",
-                  padding: "6px 14px",
-                  cursor: "pointer",
-                  transition: "all 140ms ease",
+                  padding: "3px 8px",
+                  borderRadius: "24px",
+                  background: "rgba(232, 93, 159, 0.2)",
+                  border: "1px solid rgba(232, 93, 159, 0.5)",
+                  color: "var(--maru-accent-pink)",
+                  fontSize: "9px",
+                  fontWeight: 800,
                 }}
               >
-                {p}
-              </button>
-            ))}
+                NOW
+              </div>
+            ) : (
+              <span style={{ fontSize: "10px", color: "rgba(235, 235, 245, 0.5)" }}>
+                {track.date}
+              </span>
+            )}
           </div>
-        </div>
+        ))}
+      </div>
 
-        {/* Top Artists List */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {topArtists.map((artist, idx) => {
-            const maxPlays = topArtists[0]?.playcount || 1;
-            const pct = Math.max(10, (artist.playcount / maxPlays) * 100);
-            return (
+      {/* 4. TOP TRACKS */}
+      {topTracks.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px", marginTop: "8px" }}>
+            <BarChart2 size={15} color="var(--maru-accent-pink)" />
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
+              TOP TRACKS ({selectedPeriod.toUpperCase()})
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {topTracks.map((item, idx) => (
               <div
-                key={artist.name}
-                className="glass-card-subtle"
+                key={idx}
+                onClick={() =>
+                  onSongClick?.({
+                    title: item.name,
+                    artist: item.artist?.name || "",
+                  })
+                }
+                className="glass-card"
                 style={{
-                  padding: "14px 18px",
+                  padding: "12px 14px",
                   display: "flex",
                   alignItems: "center",
-                  gap: "16px",
-                  position: "relative",
-                  overflow: "hidden",
+                  justifyContent: "space-between",
+                  cursor: "pointer",
                 }}
               >
-                {/* Progress bar background fill */}
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    bottom: 0,
-                    left: 0,
-                    width: `${pct}%`,
-                    background: "rgba(112, 165, 255, 0.08)",
-                    zIndex: 0,
-                  }}
-                />
-
-                <span style={{ fontSize: "14px", fontWeight: 900, color: "var(--maru-accent-pink)", width: "24px", zIndex: 1 }}>
-                  #{idx + 1}
-                </span>
-
-                <div style={{ flex: 1, zIndex: 1 }}>
-                  <div style={{ fontSize: "14.5px", fontWeight: 700, color: "#fafcff" }}>
-                    {artist.name}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: "rgba(232, 93, 159, 0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--maru-accent-pink)",
+                    }}
+                  >
+                    #{idx + 1}
                   </div>
-                  <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", marginTop: "2px" }}>
-                    {artist.playcount} scrobbles
+                  <div>
+                    <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#f4f4f9fa" }}>
+                      {item.name}
+                    </div>
+                    <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.72)" }}>
+                      {item.artist?.name}
+                    </div>
                   </div>
                 </div>
+
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--maru-accent-pink)" }}>
+                  {parseInt(item.playcount || "0", 10).toLocaleString()} plays
+                </div>
               </div>
-            );
-          })}
-        </div>
-      </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 5. TOP ARTISTS */}
+      {topArtists.length > 0 && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px", marginTop: "8px" }}>
+            <Users size={15} color="var(--maru-accent-blue)" />
+            <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-blue)", letterSpacing: "0.8px" }}>
+              TOP ARTISTS ({selectedPeriod.toUpperCase()})
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {topArtists.map((item, idx) => (
+              <div
+                key={idx}
+                className="glass-card"
+                style={{
+                  padding: "12px 14px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: "rgba(96, 226, 255, 0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      color: "var(--maru-accent-blue)",
+                    }}
+                  >
+                    #{idx + 1}
+                  </div>
+                  <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#f4f4f9fa" }}>
+                    {item.name}
+                  </div>
+                </div>
+
+                <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--maru-accent-blue)" }}>
+                  {parseInt(item.playcount || "0", 10).toLocaleString()} plays
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };
