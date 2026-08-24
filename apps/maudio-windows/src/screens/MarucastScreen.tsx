@@ -732,7 +732,7 @@ export const MarucastScreen: React.FC = () => {
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
                             <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "#ffffff" }}>
-                              Marucast for Windows
+                              MAudio for Windows
                             </span>
                             <span
                               style={{
