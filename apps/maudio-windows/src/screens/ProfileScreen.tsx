@@ -27,8 +27,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
     { key: "overall", label: "ALL" },
   ];
 
+  const effectiveUsername = username.trim() || localStorage.getItem("maudio_username")?.trim() || "";
+
   const loadData = async () => {
-    const u = username.trim();
+    const u = effectiveUsername;
     if (!u) {
       setProfile(null);
       setRecentTracks([]);
@@ -64,9 +66,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
 
   useEffect(() => {
     loadData();
-  }, [username, selectedPeriod]);
+  }, [username, effectiveUsername, selectedPeriod]);
 
-  if (!username.trim()) {
+  if (!effectiveUsername) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -209,7 +211,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
 
             <div style={{ flex: 1, overflow: "hidden" }}>
               <div style={{ fontSize: "20px", fontWeight: 800, color: "#f4f4f9fa" }}>
-                {profile?.username || username}
+                {profile?.username || effectiveUsername}
               </div>
 
               {profile?.realName && (

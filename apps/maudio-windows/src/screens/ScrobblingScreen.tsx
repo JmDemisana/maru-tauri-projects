@@ -4,17 +4,17 @@ import { LASTFM_API_KEY, LASTFM_SECRET, fetchSessionFromToken } from "../utils/l
 import { User, Sliders, AppWindow, CheckCircle2, LogOut, ExternalLink, ShieldCheck, RefreshCw, Key } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export const ScrobblingScreen: React.FC = () => {
+interface ScrobblingScreenProps {
+  username: string;
+  onUsernameChange: (newUsername: string) => void;
+}
+
+export const ScrobblingScreen: React.FC<ScrobblingScreenProps> = ({ username, onUsernameChange }) => {
   const [scrobbleEnabled, setScrobbleEnabled] = useState<boolean>(() => {
     return localStorage.getItem("maudio_scrobble_enabled") !== "false";
   });
   const [sessionKey, setSessionKey] = useState<string>(() => {
     return localStorage.getItem("maudio_session_key") || "";
-  });
-  const [username, setUsername] = useState<string>(() => {
-    const sk = localStorage.getItem("maudio_session_key");
-    if (!sk) return "";
-    return localStorage.getItem("maudio_username") || "";
   });
   const [scrobblePercentage, setScrobblePercentage] = useState<number>(() => {
     return parseInt(localStorage.getItem("maudio_scrobble_pct") || "50", 10);
@@ -131,9 +131,9 @@ export const ScrobblingScreen: React.FC = () => {
     try {
       const session = await fetchSessionFromToken(token);
       setSessionKey(session.key);
-      setUsername(session.name);
       localStorage.setItem("maudio_session_key", session.key);
       localStorage.setItem("maudio_username", session.name);
+      onUsernameChange(session.name);
       setTokenInput("");
     } catch (e: any) {
       setAuthError(e.message || "Failed to authorize session token");
@@ -148,8 +148,8 @@ export const ScrobblingScreen: React.FC = () => {
       localStorage.setItem("maudio_session_key", manualKeyInput.trim());
     }
     if (manualUserInput.trim()) {
-      setUsername(manualUserInput.trim());
       localStorage.setItem("maudio_username", manualUserInput.trim());
+      onUsernameChange(manualUserInput.trim());
     }
     setShowManualDialog(false);
   };
@@ -157,6 +157,8 @@ export const ScrobblingScreen: React.FC = () => {
   const handleDisconnect = () => {
     setSessionKey("");
     localStorage.removeItem("maudio_session_key");
+    localStorage.removeItem("maudio_username");
+    onUsernameChange("");
   };
 
   useEffect(() => {

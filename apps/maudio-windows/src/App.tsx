@@ -26,12 +26,20 @@ export function App() {
   const [selectedArtistDetail, setSelectedArtistDetail] = useState<string>("GUMI");
 
   const [username, setUsername] = useState(() => {
-    const sk = localStorage.getItem("maudio_session_key");
-    if (!sk) return "";
     return localStorage.getItem("maudio_username") || "";
   });
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
   const [selectedSongDetail, setSelectedSongDetail] = useState<SongDetailState | null>(null);
+
+  const updateUsername = (newUsername: string) => {
+    const clean = newUsername.trim();
+    setUsername(clean);
+    if (clean) {
+      localStorage.setItem("maudio_username", clean);
+    } else {
+      localStorage.removeItem("maudio_username");
+    }
+  };
 
   const [mediaState, setMediaState] = useState<MediaState>({
     title: null,
@@ -150,32 +158,48 @@ export function App() {
 
   // Listen for Last.fm token emitted from local auth loopback server (zero-click handoff)
   useEffect(() => {
-    let unlistenFn: (() => void) | null = null;
-    listen<string>("lastfm-auth-token", async (event) => {
-      const token = event.payload;
-      if (token) {
-        try {
-          const session = await fetchSessionFromToken(token);
-          localStorage.setItem("maudio_session_key", session.key);
-          localStorage.setItem("maudio_username", session.name);
-          setUsername(session.name);
-          setSelectedScreen(NavigationScreen.PROFILE);
-        } catch (err) {
-          console.error("Auto-auth error from loopback token:", err);
-        }
+    let unlisten1: (() => void) | null = null;
+    let unlisten2: (() => void) | null = null;
+
+    const handleAuthToken = async (token: string) => {
+      if (!token) return;
+      try {
+        const session = await fetchSessionFromToken(token);
+        localStorage.setItem("maudio_session_key", session.key);
+        localStorage.setItem("maudio_username", session.name);
+        updateUsername(session.name);
+        setSelectedScreen(NavigationScreen.PROFILE);
+      } catch (err) {
+        console.error("Auto-auth error from loopback token:", err);
       }
-    }).then((unlisten) => {
-      unlistenFn = unlisten;
+    };
+
+    listen<string>("lastfm_token_received", (event) => handleAuthToken(event.payload)).then((u) => {
+      unlisten1 = u;
+    });
+    listen<string>("lastfm-auth-token", (event) => handleAuthToken(event.payload)).then((u) => {
+      unlisten2 = u;
     });
 
     return () => {
-      if (unlistenFn) unlistenFn();
+      if (unlisten1) unlisten1();
+      if (unlisten2) unlisten2();
     };
   }, []);
 
   useEffect(() => {
-    if (username) {
-      fetchLastfmProfile(username).then(setProfile).catch(console.error);
+    if (username.trim()) {
+      fetchLastfmProfile(username.trim())
+        .then(setProfile)
+        .catch((err) => {
+          console.warn("Could not fetch Last.fm profile:", err);
+          setProfile({
+            username: username.trim(),
+            totalScrobbles: 0,
+            artistCount: 0,
+            trackCount: 0,
+          });
+        });
     } else {
       setProfile(null);
     }
@@ -306,7 +330,7 @@ export function App() {
                   key="search"
                   onSongClick={(song) => setSelectedSongDetail(song)}
                   onOpenProfile={(u) => {
-                    setUsername(u);
+                    updateUsername(u);
                     setSelectedScreen(NavigationScreen.PROFILE);
                   }}
                   onOpenArtist={(art) => {
@@ -359,16 +383,18 @@ export function App() {
               )}
 
               {selectedScreen === NavigationScreen.SCROBBLING && (
-                <ScrobblingScreen key="scrobbling" />
+                <ScrobblingScreen
+                  key="scrobbling"
+                  username={username}
+                  onUsernameChange={(u) => updateUsername(u)}
+                />
               )}
 
               {selectedScreen === NavigationScreen.COMMON && (
                 <SettingsScreen
                   key="settings"
                   username={username}
-                  onSaveUsername={(u) => {
-                    setUsername(u);
-                  }}
+                  onSaveUsername={(u) => updateUsername(u)}
                 />
               )}
             </AnimatePresence>

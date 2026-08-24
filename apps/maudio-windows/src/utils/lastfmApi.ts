@@ -24,6 +24,9 @@ export async function fetchLastfmProfile(username: string): Promise<LastfmProfil
     throw new Error(`Failed to fetch profile: ${res.statusText}`);
   }
   const data = await res.json();
+  if (data.error || !data.user) {
+    throw new Error(data.message || "User not found on Last.fm");
+  }
   const u = data.user;
   const avatar = u?.image?.find((i: any) => i.size === "large")?.["#text"] || "";
   return {
@@ -164,6 +167,9 @@ export async function fetchSessionFromToken(token: string): Promise<{ key: strin
   const url = `${BASE_URL}?method=auth.getSession&api_key=${LASTFM_API_KEY}&token=${encodeURIComponent(token.trim())}&api_sig=${api_sig}&format=json`;
   const res = await fetch(url);
   const data = await res.json();
+  if (!data.session) {
+    throw new Error(data.message || "Failed to retrieve session from Last.fm");
+  }
   return {
     key: data.session.key,
     name: data.session.name,
