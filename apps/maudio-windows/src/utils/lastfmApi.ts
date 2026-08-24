@@ -13,7 +13,7 @@ export function generateApiSignature(params: Record<string, string>): string {
     str += `${k}${params[k]}`;
   }
   str += LASTFM_SECRET;
-  return md5(str);
+  return (typeof md5 === "function" ? (md5 as any)(str) : (md5 as any).hex(str));
 }
 
 export async function fetchLastfmProfile(username: string): Promise<LastfmProfile> {
