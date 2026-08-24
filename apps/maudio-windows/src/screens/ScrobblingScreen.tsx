@@ -12,7 +12,9 @@ export const ScrobblingScreen: React.FC = () => {
     return localStorage.getItem("maudio_session_key") || "";
   });
   const [username, setUsername] = useState<string>(() => {
-    return localStorage.getItem("maudio_username") || "JmDemisana";
+    const sk = localStorage.getItem("maudio_session_key");
+    if (!sk) return "";
+    return localStorage.getItem("maudio_username") || "";
   });
   const [scrobblePercentage, setScrobblePercentage] = useState<number>(() => {
     return parseInt(localStorage.getItem("maudio_scrobble_pct") || "50", 10);

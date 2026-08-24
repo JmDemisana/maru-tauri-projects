@@ -6,6 +6,7 @@ import {
   Search,
   User,
   Stars,
+  Mic2,
   Cast,
   CloudUpload,
   Activity,
@@ -46,6 +47,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
       title: "Profile",
       subtitle: "Scrobble Stats & Charts",
       icon: User,
+    },
+    {
+      screen: NavigationScreen.KARAOKE,
+      title: "Karaoke",
+      subtitle: "PC Synced Lyrics",
+      icon: Mic2,
     },
     {
       screen: NavigationScreen.NAMIREC,

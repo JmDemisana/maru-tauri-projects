@@ -7,14 +7,16 @@ import { SongDetailModal } from "./components/SongDetailModal";
 import { DiscoveryScreen } from "./screens/DiscoveryScreen";
 import { SearchScreen } from "./screens/SearchScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
+import { KaraokeScreen } from "./screens/KaraokeScreen";
 import { NamiRecScreen } from "./screens/NamiRecScreen";
 import { ArtistFeatureScreen } from "./screens/ArtistFeatureScreen";
 import { LocalScreen } from "./screens/LocalScreen";
 import { ScrobblingScreen } from "./screens/ScrobblingScreen";
 import { MarucastScreen } from "./screens/MarucastScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import { fetchLastfmProfile } from "./utils/lastfmApi";
+import { fetchLastfmProfile, fetchSessionFromToken } from "./utils/lastfmApi";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Heart, Cast, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -24,7 +26,9 @@ export function App() {
   const [selectedArtistDetail, setSelectedArtistDetail] = useState<string>("GUMI");
 
   const [username, setUsername] = useState(() => {
-    return localStorage.getItem("maudio_username") || "JmDemisana";
+    const sk = localStorage.getItem("maudio_session_key");
+    if (!sk) return "";
+    return localStorage.getItem("maudio_username") || "";
   });
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
   const [selectedSongDetail, setSelectedSongDetail] = useState<SongDetailState | null>(null);
@@ -57,14 +61,44 @@ export function App() {
     return () => clearInterval(timer);
   }, []);
 
+  // Listen for Last.fm token emitted from local auth loopback server (zero-click handoff)
   useEffect(() => {
-    fetchLastfmProfile(username).then(setProfile).catch(console.error);
+    let unlistenFn: (() => void) | null = null;
+    listen<string>("lastfm-auth-token", async (event) => {
+      const token = event.payload;
+      if (token) {
+        try {
+          const session = await fetchSessionFromToken(token);
+          localStorage.setItem("maudio_session_key", session.key);
+          localStorage.setItem("maudio_username", session.name);
+          setUsername(session.name);
+          setSelectedScreen(NavigationScreen.PROFILE);
+        } catch (err) {
+          console.error("Auto-auth error from loopback token:", err);
+        }
+      }
+    }).then((unlisten) => {
+      unlistenFn = unlisten;
+    });
+
+    return () => {
+      if (unlistenFn) unlistenFn();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (username) {
+      fetchLastfmProfile(username).then(setProfile).catch(console.error);
+    } else {
+      setProfile(null);
+    }
   }, [username]);
 
   const screenTitles: Record<NavigationScreen, string> = {
     [NavigationScreen.DISCOVERY]: "Discovery Feed",
     [NavigationScreen.SEARCH]: "Music Search",
     [NavigationScreen.PROFILE]: "Listener Profile",
+    [NavigationScreen.KARAOKE]: "Karaoke Mode",
     [NavigationScreen.NAMIREC]: "Nami's Month in Songs",
     [NavigationScreen.ARTIST_DETAIL]: "Artist Feature",
     [NavigationScreen.LOCAL]: "Media Listener",
@@ -234,6 +268,15 @@ export function App() {
                   key="profile"
                   username={username}
                   onBack={() => setSelectedScreen(NavigationScreen.DISCOVERY)}
+                  onSongClick={(s) => setSelectedSongDetail(s)}
+                  onNavigateScrobbler={() => setSelectedScreen(NavigationScreen.SCROBBLING)}
+                />
+              )}
+
+              {selectedScreen === NavigationScreen.KARAOKE && (
+                <KaraokeScreen
+                  key="karaoke"
+                  mediaState={mediaState}
                   onSongClick={(s) => setSelectedSongDetail(s)}
                 />
               )}

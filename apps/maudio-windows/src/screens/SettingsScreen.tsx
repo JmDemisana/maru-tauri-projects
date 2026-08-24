@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { PlayCircle, User, Sliders, RefreshCw, Check } from "lucide-react";
+import { PlayCircle, User, Sliders, RefreshCw, Check, Monitor, Power } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 
 interface SettingsScreenProps {
   username: string;
@@ -14,10 +15,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
   const [directSongLaunch, setDirectSongLaunch] = useState(() => {
     return localStorage.getItem("maudio_direct_launch") === "true";
   });
-  const [userInput, setUserInput] = useState(username || "JmDemisana");
+  const [minimizeToTray, setMinimizeToTray] = useState(() => {
+    return localStorage.getItem("maudio_minimize_to_tray") !== "false";
+  });
+  const [autoStart, setAutoStart] = useState<boolean>(false);
+
+  const [userInput, setUserInput] = useState(username || "");
   const [savedUserMsg, setSavedUserMsg] = useState(false);
 
   const platforms = ["Apple Music", "Spotify", "YouTube Music", "Tidal"];
+
+  useEffect(() => {
+    invoke<boolean>("get_auto_start")
+      .then((res) => setAutoStart(!!res))
+      .catch(() => {});
+  }, []);
 
   const handleSelectPlatform = (p: string) => {
     setPreferredPlatform(p);
@@ -27,6 +39,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
   const handleToggleDirectLaunch = (val: boolean) => {
     setDirectSongLaunch(val);
     localStorage.setItem("maudio_direct_launch", val.toString());
+  };
+
+  const handleToggleMinimizeToTray = (val: boolean) => {
+    setMinimizeToTray(val);
+    localStorage.setItem("maudio_minimize_to_tray", val.toString());
+  };
+
+  const handleToggleAutoStart = async (val: boolean) => {
+    setAutoStart(val);
+    try {
+      await invoke("set_auto_start", { enable: val });
+    } catch (e) {
+      console.error("Failed to toggle autostart:", e);
+    }
   };
 
   const handleSaveUsername = () => {
@@ -56,8 +82,56 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
         width: "100%",
       }}
     >
-      {/* 1. PLAYER & LAUNCH BEHAVIOR */}
+      {/* 1. WINDOWS SYSTEM & STARTUP */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px" }}>
+        <Monitor size={15} color="var(--maru-accent-pink)" />
+        <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
+          WINDOWS SYSTEM &amp; STARTUP
+        </span>
+      </div>
+
+      <div className="glass-card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+        {/* Start on boot */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#f4f4f9fa" }}>
+              Start with Windows (Minimized to System Tray)
+            </div>
+            <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.72)", marginTop: "2px" }}>
+              Automatically launches MAudio upon PC boot in the background to scrobble PC audio silently.
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={autoStart}
+            onChange={(e) => handleToggleAutoStart(e.target.checked)}
+            style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
+          />
+        </div>
+
+        <div style={{ height: "1px", background: "rgba(255, 255, 255, 0.08)" }} />
+
+        {/* Minimize to Tray */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#f4f4f9fa" }}>
+              Minimize to System Tray on Close
+            </div>
+            <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.72)", marginTop: "2px" }}>
+              Closing or minimizing the window keeps MAudio active in the tray rather than terminating.
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={minimizeToTray}
+            onChange={(e) => handleToggleMinimizeToTray(e.target.checked)}
+            style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
+          />
+        </div>
+      </div>
+
+      {/* 2. PLAYER & LAUNCH BEHAVIOR */}
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px", marginTop: "4px" }}>
         <PlayCircle size={15} color="var(--maru-accent-pink)" />
         <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
           STREAMING SERVICE &amp; PLAYBACK
@@ -118,7 +192,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
         </div>
       </div>
 
-      {/* 2. LAST.FM PROFILE */}
+      {/* 3. LAST.FM PROFILE */}
       <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px", marginTop: "4px" }}>
         <User size={15} color="var(--maru-accent-pink)" />
         <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
@@ -136,7 +210,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
             type="text"
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
-            placeholder="Username"
+            placeholder="Username (e.g. your Last.fm username)"
             style={{
               flex: 1,
               background: "rgba(0,0,0,0.3)",

@@ -2,21 +2,22 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { LastfmProfile, TimePeriod, LastfmTrack, SongDetailState } from "../types";
 import { fetchLastfmProfile, fetchRecentTracks, LASTFM_API_KEY } from "../utils/lastfmApi";
-import { User, History, Users, Disc, ArrowLeft, RefreshCw, BarChart2, Sparkles } from "lucide-react";
+import { User, History, Users, Disc, ArrowLeft, RefreshCw, BarChart2, Sparkles, LogIn } from "lucide-react";
 
 interface ProfileScreenProps {
   username: string;
   onBack?: () => void;
   onSongClick?: (song: SongDetailState) => void;
+  onNavigateScrobbler?: () => void;
 }
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, onSongClick }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, onSongClick, onNavigateScrobbler }) => {
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<string>("7day");
   const [recentTracks, setRecentTracks] = useState<LastfmTrack[]>([]);
   const [topTracks, setTopTracks] = useState<any[]>([]);
   const [topArtists, setTopArtists] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const periods = [
     { key: "7day", label: "7D" },
@@ -27,8 +28,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
   ];
 
   const loadData = async () => {
+    const u = username.trim();
+    if (!u) {
+      setProfile(null);
+      setRecentTracks([]);
+      setTopTracks([]);
+      setTopArtists([]);
+      return;
+    }
+
     setIsLoading(true);
-    const u = username.trim() || "JmDemisana";
 
     try {
       const [prof, recents, resTTracks, resTArtists] = await Promise.all([
@@ -56,6 +65,85 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
   useEffect(() => {
     loadData();
   }, [username, selectedPeriod]);
+
+  if (!username.trim()) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "32px",
+        }}
+      >
+        <div
+          className="glass-card"
+          style={{
+            maxWidth: "460px",
+            padding: "36px 32px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "16px",
+            border: "1px solid rgba(232, 93, 159, 0.4)",
+          }}
+        >
+          <div
+            style={{
+              width: "68px",
+              height: "68px",
+              borderRadius: "50%",
+              background: "rgba(232, 93, 159, 0.15)",
+              border: "2px solid var(--maru-accent-pink)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <User size={32} color="var(--maru-accent-pink)" />
+          </div>
+
+          <div style={{ fontSize: "18px", fontWeight: 800, color: "#f4f4f9fa" }}>
+            No Profile Connected
+          </div>
+
+          <div style={{ fontSize: "12.5px", color: "rgba(235, 235, 245, 0.72)", lineHeight: "1.6" }}>
+            Connect your Last.fm account to view your scrobble statistics, recent listening history, and ranked charts!
+          </div>
+
+          {onNavigateScrobbler && (
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={onNavigateScrobbler}
+              style={{
+                marginTop: "6px",
+                padding: "12px 24px",
+                borderRadius: "12px",
+                background: "var(--maru-accent-pink)",
+                border: "none",
+                color: "#ffffff",
+                fontWeight: 800,
+                fontSize: "12.5px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <LogIn size={16} />
+              <span>CONNECT LAST.FM ACCOUNT</span>
+            </motion.button>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
