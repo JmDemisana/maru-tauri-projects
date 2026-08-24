@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { RecommendedTrackItem } from "../types";
 import { Sparkles, LayoutList, LayoutGrid, ChevronRight, Disc, RefreshCw } from "lucide-react";
 import { getRecommendations } from "../utils/LastFmRecommendationsEngine";
@@ -30,7 +31,11 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
   }, [username]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
       style={{
         flex: 1,
         overflowY: "auto",
@@ -69,7 +74,9 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
 
         {/* Refresh & LIST / GRID Toggle Pill */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={fetchFeed}
             disabled={isLoading}
             style={{
@@ -88,9 +95,11 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           >
             <RefreshCw size={12} className={isLoading ? "animate-spin" : ""} color="var(--maru-accent-pink)" />
             <span>REFRESH</span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setIsGridView(!isGridView)}
             style={{
               display: "flex",
@@ -112,13 +121,16 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               <LayoutGrid size={14} color="var(--maru-accent-pink)" />
             )}
             <span>{isGridView ? "LIST" : "GRID"}</span>
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* 2. Loading State */}
       {isLoading && (
-        <div
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           style={{
             height: "280px",
             display: "flex",
@@ -132,12 +144,14 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           <span style={{ fontSize: "13px", color: "rgba(235, 235, 245, 0.72)" }}>
             Curating personalized recommendations from Last.fm...
           </span>
-        </div>
+        </motion.div>
       )}
 
       {/* 3. Empty State */}
       {!isLoading && recommendations.length === 0 && (
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
           className="glass-card"
           style={{
             padding: "32px 24px",
@@ -155,110 +169,125 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           <div style={{ fontSize: "12px", color: "rgba(235, 235, 245, 0.6)" }}>
             Scrobble some music or change your Last.fm username in Profile!
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* 4. Recommendation Cards (List or Grid) */}
       {!isLoading && !isGridView && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {recommendations.map((item, idx) => (
-            <div
-              key={idx}
-              onClick={() => onSongClick(item)}
-              className="glass-card"
-              style={{
-                padding: "12px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "14px",
-                cursor: "pointer",
-                transition: "all 140ms ease",
-              }}
-            >
-              {/* Artwork Box */}
-              <div
+        <motion.div layout style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <AnimatePresence>
+            {recommendations.map((item, idx) => (
+              <motion.div
+                key={`${item.title}-${idx}`}
+                layout
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.2) }}
+                whileHover={{ scale: 1.008, x: 2 }}
+                whileTap={{ scale: 0.99 }}
+                onClick={() => onSongClick(item)}
+                className="glass-card"
                 style={{
-                  width: "52px",
-                  height: "52px",
-                  borderRadius: "12px",
-                  background: "rgba(255, 255, 255, 0.1)",
-                  overflow: "hidden",
-                  flexShrink: 0,
+                  padding: "12px 14px",
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
+                  gap: "14px",
+                  cursor: "pointer",
+                  transition: "background 140ms ease, border 140ms ease",
                 }}
               >
-                {item.effectiveArtworkUrl ? (
-                  <img
-                    src={item.effectiveArtworkUrl}
-                    alt={item.title}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        "https://lastfm.freetls.fastly.net/i/u/64s/4128a6eb29f94943c9d206c08e625904.png";
-                    }}
-                  />
-                ) : (
-                  <Disc size={24} color="var(--maru-accent-pink)" />
-                )}
-              </div>
+                {/* Artwork Box */}
+                <div
+                  style={{
+                    width: "52px",
+                    height: "52px",
+                    borderRadius: "12px",
+                    background: "rgba(255, 255, 255, 0.1)",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {item.effectiveArtworkUrl ? (
+                    <img
+                      src={item.effectiveArtworkUrl}
+                      alt={item.title}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "https://lastfm.freetls.fastly.net/i/u/64s/4128a6eb29f94943c9d206c08e625904.png";
+                      }}
+                    />
+                  ) : (
+                    <Disc size={24} color="var(--maru-accent-pink)" />
+                  )}
+                </div>
 
-              {/* Title & Contextual Reason */}
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                {item.reason && (
+                {/* Title & Contextual Reason */}
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  {item.reason && (
+                    <div
+                      style={{
+                        fontSize: "10px",
+                        fontWeight: 700,
+                        color: "var(--maru-accent-pink)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      {item.reason}
+                    </div>
+                  )}
                   <div
                     style={{
-                      fontSize: "10px",
+                      fontSize: "13.5px",
                       fontWeight: 700,
-                      color: "var(--maru-accent-pink)",
+                      color: "#f4f4f9fa",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
-                      marginBottom: "2px",
                     }}
                   >
-                    {item.reason}
+                    {item.title}
                   </div>
-                )}
-                <div
-                  style={{
-                    fontSize: "13.5px",
-                    fontWeight: 700,
-                    color: "#f4f4f9fa",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item.title}
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: "rgba(235, 235, 245, 0.72)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      marginTop: "1px",
+                    }}
+                  >
+                    {item.artist}
+                  </div>
                 </div>
-                <div
-                  style={{
-                    fontSize: "12px",
-                    color: "rgba(235, 235, 245, 0.72)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    marginTop: "1px",
-                  }}
-                >
-                  {item.artist}
-                </div>
-              </div>
 
-              <ChevronRight size={20} color="var(--maru-accent-pink)" />
-            </div>
-          ))}
-        </div>
+                <ChevronRight size={20} color="var(--maru-accent-pink)" />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       {/* Grid Mode */}
       {!isLoading && isGridView && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
+        <motion.div layout style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px" }}>
           {recommendations.map((item, idx) => (
-            <div
-              key={idx}
+            <motion.div
+              key={`${item.title}-${idx}`}
+              layout
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.2) }}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => onSongClick(item)}
               className="glass-card"
               style={{
@@ -318,10 +347,10 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
                   {item.artist}
                 </div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 };

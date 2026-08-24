@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Search, Mic, Music, UserCheck, Sparkles, ChevronRight, X, Disc, ExternalLink } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Mic, Music, UserCheck, Sparkles, ChevronRight, X, Disc, ExternalLink, RefreshCw } from "lucide-react";
 import { SongDetailState } from "../types";
 
 export enum SearchScope {
@@ -89,7 +90,11 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
   }, [searchQuery, selectedScope]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.22 }}
       style={{
         flex: 1,
         overflowY: "auto",
@@ -107,14 +112,16 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
         {[SearchScope.ARTISTS, SearchScope.SONGS, SearchScope.PROFILES].map((scope) => {
           const isSelected = selectedScope === scope;
           return (
-            <button
+            <motion.button
               key={scope}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setSelectedScope(scope)}
               style={{
                 flex: 1,
                 padding: "8px 0",
                 borderRadius: "24px",
-                background: isSelected ? "rgba(232, 93, 159, 0.25)" : "rgba(255, 255, 255, 0.1)",
+                background: isSelected ? "rgba(232, 93, 159, 0.25)" : "rgba(255, 255, 255, 0.08)",
                 border: isSelected
                   ? "1.5px solid var(--maru-accent-pink)"
                   : "1px solid rgba(255, 255, 255, 0.094)",
@@ -122,11 +129,11 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                 fontSize: "11px",
                 fontWeight: isSelected ? 800 : 600,
                 cursor: "pointer",
-                transition: "all 120ms ease",
+                transition: "background 140ms ease, border 140ms ease",
               }}
             >
               {scope}
-            </button>
+            </motion.button>
           );
         })}
       </div>
@@ -168,7 +175,9 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
           }}
         />
 
-        {searchQuery && (
+        {isSearching && <RefreshCw size={16} className="animate-spin" color="var(--maru-accent-pink)" />}
+
+        {searchQuery && !isSearching && (
           <button
             onClick={() => setSearchQuery("")}
             style={{
@@ -187,7 +196,9 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
       {/* 3. Results Section */}
       {/* ARTISTS Scope */}
       {selectedScope === SearchScope.ARTISTS && artistResult && (
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
           className="glass-card"
           style={{
             padding: "20px",
@@ -255,7 +266,9 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
             </div>
           )}
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => onOpenArtist(artistResult.name)}
             style={{
               padding: "10px 0",
@@ -275,16 +288,18 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
           >
             <Sparkles size={15} color="#ffffff" />
             <span>EXPLORE ARTIST FEATURE</span>
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
       )}
 
       {/* SONGS Scope */}
       {selectedScope === SearchScope.SONGS && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {songResults.map((item) => (
-            <div
+            <motion.div
               key={item.trackId}
+              whileHover={{ scale: 1.01, x: 2 }}
+              whileTap={{ scale: 0.99 }}
               onClick={() =>
                 onSongClick({
                   title: item.trackName,
@@ -317,14 +332,18 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                 </div>
               </div>
               <ChevronRight size={18} color="var(--maru-accent-pink)" />
-            </div>
+            </motion.div>
           ))}
         </div>
       )}
 
       {/* PROFILES Scope */}
       {selectedScope === SearchScope.PROFILES && profileResult && (
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          whileHover={{ scale: 1.01, x: 2 }}
+          whileTap={{ scale: 0.99 }}
           onClick={() => onOpenProfile(profileResult.username)}
           className="glass-card"
           style={{
@@ -350,8 +369,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
             </div>
           </div>
           <ChevronRight size={18} color="var(--maru-accent-pink)" />
-        </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 };

@@ -11,8 +11,6 @@ export enum NavigationScreen {
   ARTIST_DETAIL = "ARTIST_DETAIL",
   MARUCAST = "MARUCAST",
   SCROBBLING = "SCROBBLING",
-  LOCAL = "LOCAL",
-  RECEIVER = "RECEIVER",
   COMMON = "COMMON",
 }
 
