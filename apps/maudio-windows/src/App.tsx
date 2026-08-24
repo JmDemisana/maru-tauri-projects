@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TitleBar } from "@maru/ui";
 import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem } from "./types";
 import { DesktopSidebar } from "./components/DesktopSidebar";
@@ -14,7 +14,7 @@ import { LocalScreen } from "./screens/LocalScreen";
 import { ScrobblingScreen } from "./screens/ScrobblingScreen";
 import { MarucastScreen } from "./screens/MarucastScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
-import { fetchLastfmProfile, fetchSessionFromToken } from "./utils/lastfmApi";
+import { fetchLastfmProfile, fetchSessionFromToken, scrobbleTrack, updateNowPlaying, isAppAllowedForScrobbling } from "./utils/lastfmApi";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Heart, Sparkles } from "lucide-react";
@@ -44,6 +44,12 @@ export function App() {
     artwork_base64: null,
   });
 
+  // Scrobbler tracking refs
+  const currentTrackKeyRef = useRef<string | null>(null);
+  const trackStartedAtRef = useRef<number>(0);
+  const hasScrobbledRef = useRef<boolean>(false);
+  const hasSentNowPlayingRef = useRef<boolean>(false);
+
   const pollMedia = async () => {
     try {
       const state = await invoke<MediaState>("get_media_state");
@@ -60,6 +66,87 @@ export function App() {
     const timer = setInterval(pollMedia, 1500);
     return () => clearInterval(timer);
   }, []);
+
+  // Background Scrobbling Engine (respects App Filter, Scrobble Enabled, & Trigger Threshold)
+  useEffect(() => {
+    const scrobbleEnabled = localStorage.getItem("maudio_scrobble_enabled") !== "false";
+    const sessionKey = localStorage.getItem("maudio_session_key");
+
+    if (!scrobbleEnabled || !sessionKey || !mediaState.title || !mediaState.artist || !mediaState.is_playing) {
+      return;
+    }
+
+    // Check App Filter
+    let selectedApps: string[] = [
+      "Spotify",
+      "Apple Music",
+      "YouTube Music",
+      "Tidal",
+      "VLC media player",
+      "Foobar2000",
+      "Chrome",
+      "Edge",
+      "Firefox",
+      "Brave",
+      "Opera",
+      "MusicBee",
+      "iTunes",
+      "AIMP",
+    ];
+    try {
+      const raw = localStorage.getItem("maudio_selected_apps");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          selectedApps = parsed;
+        }
+      }
+    } catch {
+      // fallback
+    }
+
+    if (!isAppAllowedForScrobbling(mediaState.app_name, selectedApps)) {
+      return;
+    }
+
+    const trackKey = `${mediaState.title.trim()}:::${mediaState.artist.trim()}`;
+
+    // Detect track switch
+    if (currentTrackKeyRef.current !== trackKey) {
+      currentTrackKeyRef.current = trackKey;
+      trackStartedAtRef.current = Date.now();
+      hasScrobbledRef.current = false;
+      hasSentNowPlayingRef.current = false;
+
+      // Update Now Playing on Last.fm
+      updateNowPlaying(mediaState.artist, mediaState.title, mediaState.album ?? null, sessionKey).catch(() => {});
+      hasSentNowPlayingRef.current = true;
+    }
+
+    // Check if eligible to scrobble
+    if (!hasScrobbledRef.current) {
+      const pct = Math.max(10, Math.min(90, parseInt(localStorage.getItem("maudio_scrobble_pct") || "50", 10)));
+      const durationMs = mediaState.duration_ms ?? 0;
+      const elapsedListenMs = Date.now() - trackStartedAtRef.current;
+      const positionMs = mediaState.position_ms ?? elapsedListenMs;
+
+      let thresholdMs = 30000; // minimum 30s
+      if (durationMs > 0) {
+        thresholdMs = Math.min(durationMs * (pct / 100), 240000); // 50% or 4 min max
+      }
+
+      if (positionMs >= thresholdMs || elapsedListenMs >= thresholdMs) {
+        hasScrobbledRef.current = true;
+        scrobbleTrack(mediaState.artist, mediaState.title, mediaState.album ?? null, sessionKey)
+          .then((success) => {
+            if (success && username) {
+              fetchLastfmProfile(username).then(setProfile).catch(() => {});
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [mediaState, username]);
 
   // Listen for Last.fm token emitted from local auth loopback server (zero-click handoff)
   useEffect(() => {

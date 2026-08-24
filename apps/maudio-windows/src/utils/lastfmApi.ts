@@ -164,12 +164,18 @@ export async function fetchSessionFromToken(token: string): Promise<{ key: strin
   const url = `${BASE_URL}?method=auth.getSession&api_key=${LASTFM_API_KEY}&token=${encodeURIComponent(token.trim())}&api_sig=${api_sig}&format=json`;
   const res = await fetch(url);
   const data = await res.json();
-  if (data.error || !data.session) {
-    throw new Error(data.message || `Last.fm auth error (${data.error})`);
-  }
   return {
     key: data.session.key,
     name: data.session.name,
   };
+}
+
+export function isAppAllowedForScrobbling(appName: string | null | undefined, selectedApps: string[]): boolean {
+  if (!appName) return true;
+  const cleanName = appName.toLowerCase().trim();
+  return selectedApps.some((app) => {
+    const a = app.toLowerCase().trim();
+    return cleanName.includes(a) || a.includes(cleanName);
+  });
 }
 

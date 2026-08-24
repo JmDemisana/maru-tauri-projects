@@ -28,17 +28,6 @@ export const ScrobblingScreen: React.FC = () => {
   const [isVerifyingToken, setIsVerifyingToken] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const [selectedApps, setSelectedApps] = useState<string[]>([
-    "Spotify",
-    "Apple Music",
-    "YouTube Music",
-    "Tidal",
-    "VLC media player",
-    "Foobar2000",
-    "Chrome",
-    "Edge",
-  ]);
-
   const allApps = [
     "Spotify",
     "Apple Music",
@@ -49,14 +38,63 @@ export const ScrobblingScreen: React.FC = () => {
     "Chrome",
     "Edge",
     "Firefox",
+    "Brave",
+    "Opera",
+    "MusicBee",
+    "iTunes",
+    "AIMP",
   ];
 
-  const handleToggleApp = (app: string) => {
-    if (selectedApps.includes(app)) {
-      setSelectedApps(selectedApps.filter((a) => a !== app));
-    } else {
-      setSelectedApps([...selectedApps, app]);
+  const [selectedApps, setSelectedApps] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("maudio_selected_apps");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
     }
+    return [
+      "Spotify",
+      "Apple Music",
+      "YouTube Music",
+      "Tidal",
+      "VLC media player",
+      "Foobar2000",
+      "Chrome",
+      "Edge",
+      "Firefox",
+      "Brave",
+      "Opera",
+      "MusicBee",
+      "iTunes",
+      "AIMP",
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("maudio_selected_apps", JSON.stringify(selectedApps));
+  }, [selectedApps]);
+
+  const handleToggleApp = (app: string) => {
+    setSelectedApps((prev) => {
+      const next = prev.includes(app) ? prev.filter((a) => a !== app) : [...prev, app];
+      localStorage.setItem("maudio_selected_apps", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const handleSelectAllApps = () => {
+    setSelectedApps(allApps);
+    localStorage.setItem("maudio_selected_apps", JSON.stringify(allApps));
+  };
+
+  const handleDeselectAllApps = () => {
+    setSelectedApps([]);
+    localStorage.setItem("maudio_selected_apps", JSON.stringify([]));
   };
 
   const handleConnectBrowser = async () => {
@@ -375,11 +413,45 @@ export const ScrobblingScreen: React.FC = () => {
           </div>
 
           {/* 4. APP FILTER */}
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px", marginTop: "4px" }}>
-            <AppWindow size={15} color="var(--maru-accent-pink)" />
-            <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
-              APP FILTER
-            </span>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingLeft: "4px", paddingRight: "4px", marginTop: "4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <AppWindow size={15} color="var(--maru-accent-pink)" />
+              <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
+                APP FILTER ({selectedApps.length}/{allApps.length})
+              </span>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={handleSelectAllApps}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--maru-accent-blue)",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Select All
+              </button>
+              <span style={{ color: "rgba(255, 255, 255, 0.2)", fontSize: "11px" }}>•</span>
+              <button
+                onClick={handleDeselectAllApps}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "rgba(235, 235, 245, 0.5)",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
           <div className="glass-card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "10px" }}>
