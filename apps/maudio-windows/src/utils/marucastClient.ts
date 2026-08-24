@@ -152,6 +152,39 @@ export async function sendRemoteCommand(
   }
 }
 
+export interface LocalRelayStatus {
+  mediaTitle?: string | null;
+  mediaArtist?: string | null;
+  mediaAppLabel?: string | null;
+  artworkUrl?: string | null;
+  mediaPlaying?: boolean;
+  mediaDurationMs?: number | null;
+  mediaPositionMs?: number | null;
+  mediaPositionCapturedAtMs?: number | null;
+  mediaPlaybackSpeed?: number | null;
+  deviceName?: string | null;
+  captureActive?: boolean;
+  running?: boolean;
+}
+
+/** Poll the Android helper's local LAN relay status endpoint directly.
+ *  The relay URL is something like http://192.168.x.x:48543/live.pcm —
+ *  we derive the base origin and hit /status. */
+export async function fetchLocalRelayStatus(relayUrl: string): Promise<LocalRelayStatus | null> {
+  try {
+    const base = new URL(relayUrl).origin;
+    const res = await fetch(`${base}/status`, {
+      cache: "no-store",
+      mode: "cors",
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as LocalRelayStatus;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchTrackLyrics(title: string, artist: string): Promise<MarucastLyricsData | null> {
   try {
     const qTitle = encodeURIComponent(title.trim());

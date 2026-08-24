@@ -6,7 +6,6 @@ import {
   Search,
   Play,
   Package,
-  Sparkles,
   RefreshCw,
   Volume2,
   Trash2,
@@ -81,24 +80,6 @@ export const AppHubScreen: React.FC<AppHubScreenProps> = ({
         }}
       >
         <div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 10px",
-              borderRadius: "20px",
-              background: "rgba(232, 93, 159, 0.14)",
-              border: "1px solid rgba(232, 93, 159, 0.3)",
-              color: "var(--maru-accent-pink)",
-              fontSize: "11px",
-              fontWeight: 700,
-              marginBottom: "8px",
-            }}
-          >
-            <Sparkles size={12} />
-            <span>OFF-SCREEN REMOTE HUB</span>
-          </div>
           <h1 style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.5px" }}>
             Installed Apps &amp; Games
           </h1>

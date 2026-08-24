@@ -106,24 +106,6 @@ export const ControlsScreen: React.FC<ControlsScreenProps> = ({
     >
       {/* Header */}
       <div style={{ marginBottom: "24px" }}>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "4px 10px",
-            borderRadius: "20px",
-            background: "rgba(192, 132, 252, 0.14)",
-            border: "1px solid rgba(192, 132, 252, 0.3)",
-            color: "var(--maru-accent-purple)",
-            fontSize: "11px",
-            fontWeight: 700,
-            marginBottom: "8px",
-          }}
-        >
-          <Volume2 size={12} />
-          <span>AUDIO, DPI &amp; KEYMAP PREFERENCES</span>
-        </div>
         <h1 style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.5px" }}>
           Game Controls &amp; Display Density
         </h1>

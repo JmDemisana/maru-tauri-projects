@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { RecentTask, AppSession } from "../types";
 import { AppIcon } from "../components/AppIcon";
 import {
-  Layers,
   Play,
   XCircle,
   RefreshCw,
@@ -55,24 +54,6 @@ export const RecentTasksScreen: React.FC<RecentTasksScreenProps> = ({
         }}
       >
         <div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 10px",
-              borderRadius: "20px",
-              background: "rgba(232, 93, 159, 0.14)",
-              border: "1px solid rgba(232, 93, 159, 0.3)",
-              color: "var(--maru-accent-pink)",
-              fontSize: "11px",
-              fontWeight: 700,
-              marginBottom: "8px",
-            }}
-          >
-            <Layers size={12} />
-            <span>ACTIVE TASKS &amp; WINDOWS</span>
-          </div>
           <h1 style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.5px" }}>
             Recent Android Tasks
           </h1>

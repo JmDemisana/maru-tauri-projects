@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { AdbDevice } from "../types";
 import {
-  Wifi,
   Smartphone,
   RefreshCw,
   Link,
@@ -86,24 +85,6 @@ export const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
         }}
       >
         <div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "4px 10px",
-              borderRadius: "20px",
-              background: "rgba(112, 165, 255, 0.14)",
-              border: "1px solid rgba(112, 165, 255, 0.3)",
-              color: "var(--maru-accent-blue)",
-              fontSize: "11px",
-              fontWeight: 700,
-              marginBottom: "8px",
-            }}
-          >
-            <Wifi size={12} />
-            <span>WIRELESS &amp; USB LINK</span>
-          </div>
           <h1 style={{ fontSize: "28px", fontWeight: 800, letterSpacing: "-0.5px" }}>
             Device Connectivity
           </h1>
