@@ -125,9 +125,33 @@ pub mod windows_impl {
 
         let timeline = session.GetTimelineProperties().ok();
         let (position_ms, duration_ms) = if let Some(t) = timeline {
-            let pos = t.Position().map(|ts| ts.Duration as u64 / 10_000).ok();
-            let dur = t.EndTime().map(|ts| ts.Duration as u64 / 10_000).ok();
-            (pos, dur)
+            let base_pos = t.Position().map(|ts| ts.Duration as i64 / 10_000).unwrap_or(0);
+            let end_dur = t.EndTime().map(|ts| ts.Duration as u64 / 10_000).ok();
+
+            let pos = if is_playing {
+                if let Ok(last_updated) = t.LastUpdatedTime() {
+                    // Windows DateTime UniversalTime: 100ns intervals since 1601-01-01
+                    // 11644473600000 ms between 1601 and 1970 UNIX epoch
+                    use std::time::{SystemTime, UNIX_EPOCH};
+                    let now_ms = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0);
+                    let last_updated_ms = (last_updated.UniversalTime / 10_000) - 11_644_473_600_000;
+                    let elapsed_ms = (now_ms - last_updated_ms).max(0);
+                    let computed = (base_pos + elapsed_ms) as u64;
+                    if let Some(dur) = end_dur {
+                        Some(computed.min(dur))
+                    } else {
+                        Some(computed)
+                    }
+                } else {
+                    Some(base_pos.max(0) as u64)
+                }
+            } else {
+                Some(base_pos.max(0) as u64)
+            };
+            (pos, end_dur)
         } else {
             (None, None)
         };
