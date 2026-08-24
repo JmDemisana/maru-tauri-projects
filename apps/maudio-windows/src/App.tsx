@@ -87,7 +87,7 @@ export function App() {
       }}
     >
       {/* 1. Custom Faux Windows 11 Title Bar with Monitor Movement */}
-      <TitleBar title="MAudio" iconSrc="/icon.png" />
+      <TitleBar title="MAudio" iconSrc="/icon.png" transparent={true} />
 
       {/* 2. Top App Bar (1-to-1 matching Kotlin TopAppBar) */}
       {selectedScreen !== NavigationScreen.ARTIST_DETAIL && (

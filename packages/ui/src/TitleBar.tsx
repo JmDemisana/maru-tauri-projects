@@ -5,6 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 export interface TitleBarProps {
   title?: string;
   iconSrc?: string;
+  transparent?: boolean;
+  background?: string;
   onClose?: () => void;
 }
 
@@ -31,6 +33,8 @@ const WIN11 = {
 export const TitleBar: React.FC<TitleBarProps> = ({
   title = "Maru App",
   iconSrc = "/app-icon.png",
+  transparent = false,
+  background,
   onClose,
 }) => {
   const [isDark, setIsDark] = useState(
@@ -48,22 +52,44 @@ export const TitleBar: React.FC<TitleBarProps> = ({
     mq.addEventListener("change", onTheme);
 
     // Check monitor count — show "move to monitor" only when useful
-    availableMonitors().then((monitors) => {
-      setMultiMonitor(monitors.length > 1);
-    });
+    try {
+      availableMonitors().then((monitors) => {
+        setMultiMonitor(monitors && monitors.length > 1);
+      }).catch(() => {});
+    } catch (e) {}
 
     return () => mq.removeEventListener("change", onTheme);
   }, []);
 
-  const handleMinimize = () => appWindow.minimize();
-  const handleMoveMonitor = () => invoke("move_to_next_monitor").catch(console.error);
-  const handleClose = () => {
+  const handleMinimize = async () => {
+    try {
+      await appWindow.minimize();
+    } catch (e) {
+      console.error("Failed to minimize window:", e);
+    }
+  };
+
+  const handleMoveMonitor = async () => {
+    try {
+      await invoke("move_to_next_monitor");
+    } catch (e) {
+      console.error("Failed to move to next monitor:", e);
+    }
+  };
+
+  const handleClose = async () => {
     if (onClose) {
       onClose();
     } else {
-      appWindow.close();
+      try {
+        await appWindow.close();
+      } catch (e) {
+        console.error("Failed to close window:", e);
+      }
     }
   };
+
+  const barBg = background || (transparent ? "transparent" : theme.bg);
 
   return (
     <div
@@ -72,7 +98,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({
         minHeight: "32px",
         display: "flex",
         alignItems: "center",
-        background: theme.bg,
+        background: barBg,
         userSelect: "none",
         WebkitUserSelect: "none",
         flexShrink: 0,
@@ -130,41 +156,43 @@ export const TitleBar: React.FC<TitleBarProps> = ({
       {/* Window controls: Move monitor | Minimize | Close */}
       <div style={{ display: "flex", alignItems: "stretch", height: "100%", flexShrink: 0 }}>
         {/* 1. Move to next monitor */}
-        <Win11Button
-          tooltip="Move to next monitor"
-          hoverBg={theme.btnHover}
-          activeBg={theme.btnActive}
-          textColor={theme.text}
-          onClick={handleMoveMonitor}
-        >
-          {/* Windows Project / Multiple Displays icon */}
-          <svg width="12" height="11" viewBox="0 0 12 11" fill="none">
-            <path
-              d="M5 1.5H9.5C10.0523 1.5 10.5 1.94772 10.5 2.5V7C10.5 7.55228 10.0523 8 9.5 8"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-            />
-            <rect
-              x="1.5"
-              y="3.5"
-              width="6.5"
-              height="4.5"
-              rx="0.75"
-              stroke="currentColor"
-              strokeWidth="1"
-            />
-            <line
-              x1="1"
-              y1="9.5"
-              x2="8.5"
-              y2="9.5"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-            />
-          </svg>
-        </Win11Button>
+        {multiMonitor && (
+          <Win11Button
+            tooltip="Move to next monitor"
+            hoverBg={theme.btnHover}
+            activeBg={theme.btnActive}
+            textColor={theme.text}
+            onClick={handleMoveMonitor}
+          >
+            {/* Windows Project / Multiple Displays icon */}
+            <svg width="12" height="11" viewBox="0 0 12 11" fill="none">
+              <path
+                d="M5 1.5H9.5C10.0523 1.5 10.5 1.94772 10.5 2.5V7C10.5 7.55228 10.0523 8 9.5 8"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeLinecap="round"
+              />
+              <rect
+                x="1.5"
+                y="3.5"
+                width="6.5"
+                height="4.5"
+                rx="0.75"
+                stroke="currentColor"
+                strokeWidth="1"
+              />
+              <line
+                x1="1"
+                y1="9.5"
+                x2="8.5"
+                y2="9.5"
+                stroke="currentColor"
+                strokeWidth="1"
+                strokeLinecap="round"
+              />
+            </svg>
+          </Win11Button>
+        )}
 
         {/* 2. Minimize */}
         <Win11Button
