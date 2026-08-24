@@ -48,14 +48,32 @@ pub mod windows_impl {
         };
 
         // Try getting current session, or fallback to first active playing session in GetSessions()
+        let is_self = |s: &GlobalSystemMediaTransportControlsSession| {
+            let app = s.SourceAppUserModelId().map(|h| h.to_string()).unwrap_or_default().to_lowercase();
+            app.contains("maudio") || app.contains("msedgewebview2") || app.contains("tauri")
+        };
+
         let session: Option<GlobalSystemMediaTransportControlsSession> = if let Ok(s) = manager.GetCurrentSession() {
-            Some(s)
+            if !is_self(&s) {
+                Some(s)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let session = if session.is_some() {
+            session
         } else if let Ok(sessions) = manager.GetSessions() {
             let mut playing_session = None;
             let mut fallback_session = None;
             if let Ok(count) = sessions.Size() {
                 for i in 0..count {
                     if let Ok(s) = sessions.GetAt(i) {
+                        if is_self(&s) {
+                            continue;
+                        }
                         if let Ok(info) = s.GetPlaybackInfo() {
                             if info.PlaybackStatus() == Ok(GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing) {
                                 playing_session = Some(s);
@@ -211,18 +229,36 @@ pub mod windows_impl {
             .map_err(|e| e.to_string())?;
         let manager = manager_op.get().map_err(|e| e.to_string())?;
 
+        let is_self = |s: &GlobalSystemMediaTransportControlsSession| {
+            let app = s.SourceAppUserModelId().map(|h| h.to_string()).unwrap_or_default().to_lowercase();
+            app.contains("maudio") || app.contains("msedgewebview2") || app.contains("tauri")
+        };
+
         let session = if let Ok(s) = manager.GetCurrentSession() {
-            Some(s)
-        } else if let Ok(sessions) = manager.GetSessions() {
-            if let Ok(count) = sessions.Size() {
-                if count > 0 {
-                    sessions.GetAt(0).ok()
-                } else {
-                    None
-                }
+            if !is_self(&s) {
+                Some(s)
             } else {
                 None
             }
+        } else {
+            None
+        };
+
+        let session = if session.is_some() {
+            session
+        } else if let Ok(sessions) = manager.GetSessions() {
+            let mut target = None;
+            if let Ok(count) = sessions.Size() {
+                for i in 0..count {
+                    if let Ok(s) = sessions.GetAt(i) {
+                        if !is_self(&s) {
+                            target = Some(s);
+                            break;
+                        }
+                    }
+                }
+            }
+            target
         } else {
             None
         };

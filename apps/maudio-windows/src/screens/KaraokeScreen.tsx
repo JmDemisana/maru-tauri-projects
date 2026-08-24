@@ -237,6 +237,11 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
       setIsPlayingInAppAudio(false);
     } else {
       try {
+        // Automatically pause external desktop players (Spotify/Apple Music)
+        import("@tauri-apps/api/core").then(({ invoke }) => {
+          invoke("send_media_control", { command: "pause" }).catch(() => {});
+        }).catch(() => {});
+
         await audioElRef.current.play();
         setIsPlayingInAppAudio(true);
       } catch (e) {
