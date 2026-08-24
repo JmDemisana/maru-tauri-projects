@@ -278,6 +278,7 @@ export function App() {
                   key="karaoke"
                   mediaState={mediaState}
                   onSongClick={(s) => setSelectedSongDetail(s)}
+                  onNavigateMarucast={() => setSelectedScreen(NavigationScreen.MARUCAST)}
                 />
               )}
 

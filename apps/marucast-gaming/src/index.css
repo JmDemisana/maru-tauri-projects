@@ -1,0 +1,58 @@
+:root {
+  --maru-bg-dark: #070a13;
+  --maru-surface-glass: rgba(18, 14, 30, 0.7);
+  --maru-surface-card: rgba(255, 255, 255, 0.035);
+  --maru-surface-card-hover: rgba(255, 255, 255, 0.07);
+  --maru-border: rgba(255, 255, 255, 0.08);
+  --maru-border-active: rgba(232, 93, 159, 0.6);
+  --maru-accent-pink: #ff71a2;
+  --maru-accent-blue: #70a5ff;
+  --maru-accent-green: #4ade80;
+  --maru-accent-purple: #c084fc;
+  --maru-text-main: #f4f4f9;
+  --maru-text-muted: rgba(235, 235, 245, 0.6);
+  --maru-text-dim: rgba(235, 235, 245, 0.38);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body, html {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--maru-bg-dark);
+  color: var(--maru-text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+button {
+  font-family: inherit;
+  outline: none;
+}
+
+input {
+  font-family: inherit;
+  outline: none;
+}

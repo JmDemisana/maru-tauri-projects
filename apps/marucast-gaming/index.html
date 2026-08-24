@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marucast for Gaming</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      body, html {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #070a13;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+      /* Windows standard streaming dots fallback loader */
+      .win-dots-track {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        justify-content: center;
+      }
+      .win-dots-track span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: #ff71a2;
+        animation: winDots 1.4s infinite ease-in-out both;
+      }
+      .win-dots-track span:nth-child(1) { animation-delay: -0.32s; }
+      .win-dots-track span:nth-child(2) { animation-delay: -0.16s; }
+      .win-dots-track span:nth-child(3) { animation-delay: 0s; }
+      .win-dots-track span:nth-child(4) { animation-delay: 0.16s; }
+      .win-dots-track span:nth-child(5) { animation-delay: 0.32s; }
+      @keyframes winDots {
+        0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+        40% { transform: scale(1); opacity: 1; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 16px; color: rgba(255,255,255,0.7);">
+        <div class="win-dots-track">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <p style="font-size: 13px; font-weight: 500; letter-spacing: 0.5px;">Working on it...</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
