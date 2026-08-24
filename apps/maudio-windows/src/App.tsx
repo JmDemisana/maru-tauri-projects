@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { TitleBar } from "@maru/ui";
 import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem } from "./types";
 import { DesktopSidebar } from "./components/DesktopSidebar";
-import { DesktopPlayerBar } from "./components/DesktopPlayerBar";
 import { SongDetailModal } from "./components/SongDetailModal";
 import { DiscoveryScreen } from "./screens/DiscoveryScreen";
 import { SearchScreen } from "./screens/SearchScreen";
@@ -269,21 +268,6 @@ export function App() {
               )}
             </AnimatePresence>
           </div>
-
-          {/* Persistent Desktop Media Bar */}
-          <DesktopPlayerBar
-            mediaState={mediaState}
-            onClickDetails={() => {
-              if (mediaState.title && mediaState.artist) {
-                setSelectedSongDetail({
-                  title: mediaState.title,
-                  artist: mediaState.artist,
-                  album: mediaState.album || undefined,
-                  artworkUrl: mediaState.artwork_base64,
-                });
-              }
-            }}
-          />
         </div>
       </div>
 

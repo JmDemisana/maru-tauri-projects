@@ -151,10 +151,10 @@ export const ScrobblingScreen: React.FC = () => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "10px",
+                  gap: "12px",
                 }}
               >
-                <span style={{ color: "#d51007", fontWeight: 900, fontSize: "16px" }}>last.fm</span>
+                <img src="/ic_lastfm_logo.png" alt="Last.fm" style={{ height: "24px", width: "auto", objectFit: "contain" }} />
                 <span>CONNECT VIA BROWSER</span>
                 <ExternalLink size={16} />
               </button>
@@ -189,7 +189,7 @@ export const ScrobblingScreen: React.FC = () => {
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-                <span style={{ color: "#d51007", fontWeight: 900, fontSize: "22px" }}>last.fm</span>
+                <img src="/ic_lastfm_logo.png" alt="Last.fm" style={{ height: "28px", width: "auto", objectFit: "contain" }} />
                 <div>
                   <div style={{ fontSize: "15px", fontWeight: 800, color: "#f4f4f9fa" }}>
                     {username || "Authorized User"}
