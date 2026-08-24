@@ -6,9 +6,6 @@ use dsp_engine::DspEngine;
 use tauri::{Emitter, Manager};
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::sync::Mutex;
-
-pub struct AppDspState(pub Mutex<DspEngine>);
 
 #[cfg(target_os = "windows")]
 fn fit_window_to_monitor_work_area(window: &tauri::WebviewWindow, x: i32, y: i32) {
@@ -51,29 +48,24 @@ async fn send_media_control(command: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn start_native_dsp(state: tauri::State<AppDspState>) -> Result<bool, String> {
-    let mut engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
-    engine.start()
+fn start_native_dsp(state: tauri::State<'_, DspEngine>) -> Result<bool, String> {
+    state.start()
 }
 
 #[tauri::command]
-fn stop_native_dsp(state: tauri::State<AppDspState>) -> Result<bool, String> {
-    let mut engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
-    engine.stop();
+fn stop_native_dsp(state: tauri::State<'_, DspEngine>) -> Result<bool, String> {
+    state.stop()
+}
+
+#[tauri::command]
+fn set_native_stem_levels(vocal: u32, inst: u32, bass: u32, state: tauri::State<'_, DspEngine>) -> Result<bool, String> {
+    state.set_stem_levels(vocal, inst, bass);
     Ok(true)
 }
 
 #[tauri::command]
-fn set_native_stem_levels(vocal: u32, inst: u32, bass: u32, state: tauri::State<AppDspState>) -> Result<bool, String> {
-    let engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
-    engine.set_stem_levels(vocal, inst, bass);
-    Ok(true)
-}
-
-#[tauri::command]
-fn get_dsp_spectrum_peaks(state: tauri::State<AppDspState>) -> Result<Vec<f32>, String> {
-    let engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
-    Ok(engine.get_peaks().to_vec())
+fn get_dsp_spectrum_peaks(state: tauri::State<'_, DspEngine>) -> Result<Vec<f32>, String> {
+    Ok(state.get_peaks().to_vec())
 }
 
 #[tauri::command]
@@ -196,7 +188,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .manage(AppDspState(Mutex::new(DspEngine::new())))
+        .manage(DspEngine::new())
         .invoke_handler(tauri::generate_handler![
             get_media_state,
             send_media_control,

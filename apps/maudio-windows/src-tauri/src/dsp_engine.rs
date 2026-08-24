@@ -1,26 +1,80 @@
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::mpsc::{channel, Sender};
 use std::sync::{Arc, Mutex};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{SampleFormat, Stream};
 
+enum DspCommand {
+    Start,
+    Stop,
+}
+
+#[derive(Clone)]
 pub struct DspEngine {
     pub is_active: Arc<AtomicBool>,
     pub vocal_gain: Arc<AtomicU32>,
     pub inst_gain: Arc<AtomicU32>,
     pub bass_gain: Arc<AtomicU32>,
     pub spectrum_peaks: Arc<Mutex<[f32; 16]>>,
-    stream: Option<Stream>,
+    cmd_tx: Sender<DspCommand>,
 }
+
+// Ensure Send and Sync for Tauri State
+unsafe impl Send for DspEngine {}
+unsafe impl Sync for DspEngine {}
 
 impl DspEngine {
     pub fn new() -> Self {
+        let is_active = Arc::new(AtomicBool::new(false));
+        let vocal_gain = Arc::new(AtomicU32::new(10));
+        let inst_gain = Arc::new(AtomicU32::new(100));
+        let bass_gain = Arc::new(AtomicU32::new(100));
+        let spectrum_peaks = Arc::new(Mutex::new([0.0; 16]));
+
+        let (tx, rx) = channel::<DspCommand>();
+
+        let thread_active = Arc::clone(&is_active);
+        let thread_vocal = Arc::clone(&vocal_gain);
+        let thread_inst = Arc::clone(&inst_gain);
+        let thread_bass = Arc::clone(&bass_gain);
+        let thread_spectrum = Arc::clone(&spectrum_peaks);
+
+        // Dedicated OS Audio Thread for WASAPI Stream
+        std::thread::spawn(move || {
+            let mut active_stream: Option<Stream> = None;
+
+            while let Ok(cmd) = rx.recv() {
+                match cmd {
+                    DspCommand::Start => {
+                        if active_stream.is_none() {
+                            if let Ok(stream) = create_dsp_stream(
+                                &thread_vocal,
+                                &thread_inst,
+                                &thread_bass,
+                                &thread_spectrum,
+                            ) {
+                                if stream.play().is_ok() {
+                                    active_stream = Some(stream);
+                                    thread_active.store(true, Ordering::Relaxed);
+                                }
+                            }
+                        }
+                    }
+                    DspCommand::Stop => {
+                        active_stream = None;
+                        thread_active.store(false, Ordering::Relaxed);
+                    }
+                }
+            }
+        });
+
         Self {
-            is_active: Arc::new(AtomicBool::new(false)),
-            vocal_gain: Arc::new(AtomicU32::new(10)),
-            inst_gain: Arc::new(AtomicU32::new(100)),
-            bass_gain: Arc::new(AtomicU32::new(100)),
-            spectrum_peaks: Arc::new(Mutex::new([0.0; 16])),
-            stream: None,
+            is_active,
+            vocal_gain,
+            inst_gain,
+            bass_gain,
+            spectrum_peaks,
+            cmd_tx: tx,
         }
     }
 
@@ -38,57 +92,61 @@ impl DspEngine {
         }
     }
 
-    pub fn start(&mut self) -> Result<bool, String> {
-        if self.is_active.load(Ordering::Relaxed) {
-            return Ok(true);
-        }
-
-        let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or_else(|| "No default audio output device found".to_string())?;
-
-        let config = device
-            .default_output_config()
-            .map_err(|e| format!("Failed to get default output config: {}", e))?;
-
-        let sample_format = config.sample_format();
-        let channels = config.channels() as usize;
-
-        let is_active = Arc::clone(&self.is_active);
-        let vocal_gain = Arc::clone(&self.vocal_gain);
-        let inst_gain = Arc::clone(&self.inst_gain);
-        let bass_gain = Arc::clone(&self.bass_gain);
-        let spectrum = Arc::clone(&self.spectrum_peaks);
-
-        let err_fn = |err| eprintln!("Audio DSP Stream Error: {}", err);
-
-        let stream = match sample_format {
-            SampleFormat::F32 => {
-                let stream_config: cpal::StreamConfig = config.into();
-                device.build_output_stream(
-                    &stream_config,
-                    move |data: &mut [f32], _| {
-                        process_audio_f32(data, channels, &vocal_gain, &inst_gain, &bass_gain, &spectrum);
-                    },
-                    err_fn,
-                    None,
-                )
-            }
-            _ => return Err("Unsupported sample format".to_string()),
-        }.map_err(|e| format!("Failed to build DSP output stream: {}", e))?;
-
-        stream.play().map_err(|e| format!("Failed to play DSP stream: {}", e))?;
-
-        self.stream = Some(stream);
-        self.is_active.store(true, Ordering::Relaxed);
+    pub fn start(&self) -> Result<bool, String> {
+        self.cmd_tx
+            .send(DspCommand::Start)
+            .map_err(|e| e.to_string())?;
         Ok(true)
     }
 
-    pub fn stop(&mut self) {
-        self.is_active.store(false, Ordering::Relaxed);
-        self.stream = None;
+    pub fn stop(&self) -> Result<bool, String> {
+        self.cmd_tx
+            .send(DspCommand::Stop)
+            .map_err(|e| e.to_string())?;
+        Ok(true)
     }
+}
+
+fn create_dsp_stream(
+    vocal_gain: &Arc<AtomicU32>,
+    inst_gain: &Arc<AtomicU32>,
+    bass_gain: &Arc<AtomicU32>,
+    spectrum: &Arc<Mutex<[f32; 16]>>,
+) -> Result<Stream, String> {
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .ok_or_else(|| "No default audio output device found".to_string())?;
+
+    let config = device
+        .default_output_config()
+        .map_err(|e| format!("Failed to get default output config: {}", e))?;
+
+    let sample_format = config.sample_format();
+    let channels = config.channels() as usize;
+
+    let v_gain = Arc::clone(vocal_gain);
+    let i_gain = Arc::clone(inst_gain);
+    let b_gain = Arc::clone(bass_gain);
+    let spec = Arc::clone(spectrum);
+
+    let err_fn = |err| eprintln!("Audio DSP Stream Error: {}", err);
+
+    match sample_format {
+        SampleFormat::F32 => {
+            let stream_config: cpal::StreamConfig = config.into();
+            device.build_output_stream(
+                &stream_config,
+                move |data: &mut [f32], _| {
+                    process_audio_f32(data, channels, &v_gain, &i_gain, &b_gain, &spec);
+                },
+                err_fn,
+                None,
+            )
+        }
+        _ => Err(cpal::BuildStreamError::StreamConfigNotSupported),
+    }
+    .map_err(|e| format!("Failed to build DSP stream: {}", e))
 }
 
 fn process_audio_f32(
