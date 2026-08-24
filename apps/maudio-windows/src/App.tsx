@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { TitleBar } from "@maru/ui";
 import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem } from "./types";
 import { DesktopSidebar } from "./components/DesktopSidebar";
+import { NotificationMirrorBottomBar } from "./components/NotificationMirrorBottomBar";
 import { SongDetailModal } from "./components/SongDetailModal";
 import { DiscoveryScreen } from "./screens/DiscoveryScreen";
 import { SearchScreen } from "./screens/SearchScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
 import { NamiRecScreen } from "./screens/NamiRecScreen";
 import { ArtistFeatureScreen } from "./screens/ArtistFeatureScreen";
+import { LocalScreen } from "./screens/LocalScreen";
 import { ScrobblingScreen } from "./screens/ScrobblingScreen";
 import { MarucastScreen } from "./screens/MarucastScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
@@ -65,6 +67,7 @@ export function App() {
     [NavigationScreen.PROFILE]: "Listener Profile",
     [NavigationScreen.NAMIREC]: "Nami's Month in Songs",
     [NavigationScreen.ARTIST_DETAIL]: "Artist Feature",
+    [NavigationScreen.LOCAL]: "Media Listener",
     [NavigationScreen.MARUCAST]: "Marucast Wi-Fi Receiver",
     [NavigationScreen.SCROBBLING]: "Last.fm Scrobbler",
     [NavigationScreen.COMMON]: "Settings & Preferences",
@@ -249,6 +252,10 @@ export function App() {
                 />
               )}
 
+              {selectedScreen === NavigationScreen.LOCAL && (
+                <LocalScreen key="local" mediaState={mediaState} />
+              )}
+
               {selectedScreen === NavigationScreen.MARUCAST && (
                 <MarucastScreen key="marucast" />
               )}
@@ -268,6 +275,21 @@ export function App() {
               )}
             </AnimatePresence>
           </div>
+
+          {/* Persistent Media Notification Listener Bottom Bar */}
+          <NotificationMirrorBottomBar
+            mediaState={mediaState}
+            onClick={() => {
+              if (mediaState.title) {
+                setSelectedSongDetail({
+                  title: mediaState.title,
+                  artist: mediaState.artist || "",
+                  album: mediaState.album || undefined,
+                  artworkUrl: mediaState.artwork_base64,
+                });
+              }
+            }}
+          />
         </div>
       </div>
 

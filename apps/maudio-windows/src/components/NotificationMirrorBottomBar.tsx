@@ -9,6 +9,22 @@ interface NotificationMirrorBottomBarProps {
   onClick: () => void;
 }
 
+const formatAppName = (name: string | null): string => {
+  if (!name) return "MEDIA LISTENER";
+  const lower = name.toLowerCase();
+  if (lower.includes("applemusic") || lower.includes("apple.music")) return "APPLE MUSIC";
+  if (lower.includes("spotify")) return "SPOTIFY";
+  if (lower.includes("youtube")) return "YOUTUBE MUSIC";
+  if (lower.includes("tidal")) return "TIDAL";
+  if (lower.includes("vlc")) return "VLC MEDIA PLAYER";
+  if (lower.includes("foobar")) return "FOOBAR2000";
+  if (lower.includes("chrome")) return "GOOGLE CHROME";
+  if (lower.includes("edge") || lower.includes("edg")) return "MICROSOFT EDGE";
+  if (lower.includes("firefox")) return "FIREFOX";
+  if (lower.includes("musicbee")) return "MUSICBEE";
+  return name.split("!")[0].split("_")[0].toUpperCase();
+};
+
 export const NotificationMirrorBottomBar: React.FC<NotificationMirrorBottomBarProps> = ({
   mediaState,
   onClick,
@@ -112,7 +128,7 @@ export const NotificationMirrorBottomBar: React.FC<NotificationMirrorBottomBarPr
                 textTransform: "uppercase",
               }}
             >
-              {mediaState.app_name || "WINDOWS GSMTC"}
+              {formatAppName(mediaState.app_name)}
             </span>
             <ChevronRight size={18} color="var(--maru-accent-pink)" />
           </div>

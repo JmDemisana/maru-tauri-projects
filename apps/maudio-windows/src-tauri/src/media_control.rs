@@ -78,7 +78,45 @@ pub mod windows_impl {
             None => return Ok(MediaState::default()),
         };
 
-        let app_id = session.SourceAppUserModelId().map(|h| h.to_string()).ok();
+        fn clean_app_name(raw: &str) -> String {
+            let lower = raw.to_lowercase();
+            if lower.contains("applemusic") || lower.contains("apple.music") {
+                "Apple Music".to_string()
+            } else if lower.contains("spotify") {
+                "Spotify".to_string()
+            } else if lower.contains("youtube") {
+                "YouTube Music".to_string()
+            } else if lower.contains("tidal") {
+                "Tidal".to_string()
+            } else if lower.contains("vlc") {
+                "VLC Media Player".to_string()
+            } else if lower.contains("foobar") {
+                "Foobar2000".to_string()
+            } else if lower.contains("chrome") {
+                "Google Chrome".to_string()
+            } else if lower.contains("edge") || lower.contains("edg") {
+                "Microsoft Edge".to_string()
+            } else if lower.contains("firefox") {
+                "Firefox".to_string()
+            } else if lower.contains("brave") {
+                "Brave".to_string()
+            } else if lower.contains("opera") {
+                "Opera".to_string()
+            } else if lower.contains("musicbee") {
+                "MusicBee".to_string()
+            } else if lower.contains("itunes") {
+                "iTunes".to_string()
+            } else if lower.contains("aimp") {
+                "AIMP".to_string()
+            } else {
+                let clean = raw.split('!').next().unwrap_or(raw);
+                let clean = clean.split('_').next().unwrap_or(clean);
+                clean.to_string()
+            }
+        }
+
+        let raw_app_id = session.SourceAppUserModelId().map(|h| h.to_string()).ok();
+        let app_id = raw_app_id.as_deref().map(clean_app_name);
 
         let is_playing = session
             .GetPlaybackInfo()

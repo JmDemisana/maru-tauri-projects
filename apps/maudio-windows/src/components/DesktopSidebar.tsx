@@ -8,6 +8,7 @@ import {
   Stars,
   Cast,
   CloudUpload,
+  Activity,
   Settings,
   Heart,
 } from "lucide-react";
@@ -55,6 +56,12 @@ export const DesktopSidebar: React.FC<DesktopSidebarProps> = ({
   ];
 
   const coreScreens = [
+    {
+      screen: NavigationScreen.LOCAL,
+      title: "Media Listener",
+      subtitle: "GSMTC Live Session",
+      icon: Activity,
+    },
     {
       screen: NavigationScreen.MARUCAST,
       title: "Marucast",
