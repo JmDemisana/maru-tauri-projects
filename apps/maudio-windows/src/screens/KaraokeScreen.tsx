@@ -96,6 +96,16 @@ export const KaraokeScreen: React.FC<KaraokeScreenProps> = ({ mediaState, onSong
       dspEngineRef.current.setInstrumentalLevel(instrumentalLevel);
       dspEngineRef.current.setBassPunch(bassPunch);
     }
+    
+    // Sync with native Rust DSP Engine
+    import("@tauri-apps/api/core").then(({ invoke }) => {
+      invoke("set_native_stem_levels", {
+        vocal: vocalLevel,
+        inst: instrumentalLevel,
+        bass: bassPunch,
+      }).catch(() => {});
+    }).catch(() => {});
+
     localStorage.setItem("maudio_karaoke_vocal_level", vocalLevel.toString());
     localStorage.setItem("maudio_karaoke_inst_level", instrumentalLevel.toString());
     localStorage.setItem("maudio_karaoke_bass_level", bassPunch.toString());

@@ -1,9 +1,14 @@
 pub mod media_control;
+pub mod dsp_engine;
 
 use media_control::{windows_impl, MediaState};
+use dsp_engine::DspEngine;
 use tauri::{Emitter, Manager};
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::sync::Mutex;
+
+pub struct AppDspState(pub Mutex<DspEngine>);
 
 #[cfg(target_os = "windows")]
 fn fit_window_to_monitor_work_area(window: &tauri::WebviewWindow, x: i32, y: i32) {
@@ -46,6 +51,32 @@ async fn send_media_control(command: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn start_native_dsp(state: tauri::State<AppDspState>) -> Result<bool, String> {
+    let mut engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
+    engine.start()
+}
+
+#[tauri::command]
+fn stop_native_dsp(state: tauri::State<AppDspState>) -> Result<bool, String> {
+    let mut engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
+    engine.stop();
+    Ok(true)
+}
+
+#[tauri::command]
+fn set_native_stem_levels(vocal: u32, inst: u32, bass: u32, state: tauri::State<AppDspState>) -> Result<bool, String> {
+    let engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
+    engine.set_stem_levels(vocal, inst, bass);
+    Ok(true)
+}
+
+#[tauri::command]
+fn get_dsp_spectrum_peaks(state: tauri::State<AppDspState>) -> Result<Vec<f32>, String> {
+    let engine = state.0.lock().map_err(|_| "Failed to lock DSP engine".to_string())?;
+    Ok(engine.get_peaks().to_vec())
+}
+
+#[tauri::command]
 async fn move_to_next_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
     if monitors.len() <= 1 {
@@ -69,35 +100,26 @@ async fn move_to_next_monitor(window: tauri::WebviewWindow) -> Result<(), String
     #[cfg(target_os = "windows")]
     fit_window_to_monitor_work_area(&window, mon_pos.x + 10, mon_pos.y + 10);
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = window.set_position(tauri::PhysicalPosition::new(mon_pos.x + 40, mon_pos.y + 40));
-    }
-
     Ok(())
 }
 
 #[tauri::command]
-fn set_auto_start(enable: bool) -> Result<(), String> {
+fn set_auto_start(enabled: bool) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        let exe_path = std::env::current_exe().map_err(|e| e.to_string())?;
-        let exe_str = exe_path.to_str().ok_or("Invalid executable path")?;
-        let cmd_val = format!("\"{}\" --minimized", exe_str);
+        let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe_str = current_exe.to_string_lossy().to_string();
 
-        if enable {
-            let status = Command::new("reg")
-                .args(&["add", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "MAudio", "/t", "REG_SZ", "/d", &cmd_val, "/f"])
-                .status()
-                .map_err(|e| e.to_string())?;
-            if !status.success() {
-                return Err("Failed to write autostart registry entry".to_string());
+        if enabled {
+            let cmd = format!("reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MAudio /t REG_SZ /d \"\\\"{}\\\" --minimized\" /f", exe_str);
+            let output = Command::new("cmd").args(&["/C", &cmd]).output().map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err(String::from_utf8_lossy(&output.stderr).to_string());
             }
         } else {
-            let _ = Command::new("reg")
-                .args(&["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "MAudio", "/f"])
-                .status();
+            let cmd = "reg delete HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MAudio /f";
+            let _ = Command::new("cmd").args(&["/C", cmd]).output();
         }
     }
     Ok(())
@@ -108,16 +130,14 @@ fn get_auto_start() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
         use std::process::Command;
-        let output = Command::new("reg")
-            .args(&["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "MAudio"])
-            .output()
-            .map_err(|e| e.to_string())?;
-        Ok(output.status.success())
+        let cmd = "reg query HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MAudio";
+        let output = Command::new("cmd").args(&["/C", cmd]).output().map_err(|e| e.to_string())?;
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            return Ok(stdout.contains("MAudio"));
+        }
     }
-    #[cfg(not(target_os = "windows"))]
-    {
-        Ok(false)
-    }
+    Ok(false)
 }
 
 fn start_auth_loopback_server(app_handle: tauri::AppHandle) {
@@ -125,7 +145,7 @@ fn start_auth_loopback_server(app_handle: tauri::AppHandle) {
         let listener = match TcpListener::bind("127.0.0.1:48123") {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("Auth loopback server bind notice: {}", e);
+                eprintln!("Failed to bind auth loopback server: {}", e);
                 return;
             }
         };
@@ -133,18 +153,22 @@ fn start_auth_loopback_server(app_handle: tauri::AppHandle) {
         for stream in listener.incoming() {
             if let Ok(mut stream) = stream {
                 let mut buffer = [0; 2048];
-                if let Ok(size) = stream.read(&mut buffer) {
-                    let request = String::from_utf8_lossy(&buffer[..size]);
-                    if request.starts_with("OPTIONS") {
+                if let Ok(n) = stream.read(&mut buffer) {
+                    let req = String::from_utf8_lossy(&buffer[..n]);
+                    
+                    if req.contains("OPTIONS") {
                         let response = "HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, OPTIONS\r\nAccess-Control-Allow-Headers: *\r\n\r\n";
                         let _ = stream.write_all(response.as_bytes());
-                    } else if request.contains("/auth") {
-                        if let Some(token_pos) = request.find("token=") {
-                            let sub = &request[token_pos + 6..];
-                            let token_end = sub.find(|c: char| c == ' ' || c == '&' || c == '\r' || c == '\n').unwrap_or(sub.len());
-                            let token = sub[..token_end].to_string();
-                            let _ = app_handle.emit("lastfm-auth-token", token);
+                        continue;
+                    }
 
+                    if let Some(pos) = req.find("token=") {
+                        let rest = &req[pos + 6..];
+                        let token: String = rest.chars().take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-').collect();
+
+                        if !token.is_empty() {
+                            let _ = app_handle.emit("lastfm_token_received", &token);
+                            
                             if let Some(win) = app_handle.get_webview_window("main") {
                                 let _ = win.unminimize();
                                 let _ = win.show();
@@ -172,12 +196,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .manage(AppDspState(Mutex::new(DspEngine::new())))
         .invoke_handler(tauri::generate_handler![
             get_media_state,
             send_media_control,
             move_to_next_monitor,
             set_auto_start,
-            get_auto_start
+            get_auto_start,
+            start_native_dsp,
+            stop_native_dsp,
+            set_native_stem_levels,
+            get_dsp_spectrum_peaks
         ])
         .setup(move |app| {
             let app_handle = app.handle().clone();
