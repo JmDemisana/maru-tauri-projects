@@ -280,3 +280,23 @@ export async function updateNowPlaying(artist: string, track: string, album: str
     return false;
   }
 }
+
+export async function fetchSessionFromToken(token: string): Promise<{ key: string; name: string }> {
+  const params: Record<string, string> = {
+    api_key: LASTFM_API_KEY,
+    method: "auth.getSession",
+    token: token.trim(),
+  };
+  const api_sig = generateApiSignature(params);
+  const url = `${BASE_URL}?method=auth.getSession&api_key=${LASTFM_API_KEY}&token=${encodeURIComponent(token.trim())}&api_sig=${api_sig}&format=json`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error || !data.session) {
+    throw new Error(data.message || `Last.fm auth error (${data.error})`);
+  }
+  return {
+    key: data.session.key,
+    name: data.session.name,
+  };
+}
+

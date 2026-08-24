@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { LASTFM_API_KEY, LASTFM_SECRET, scrobbleTrack, updateNowPlaying } from "../utils/lastfmApi";
-import { User, Sliders, AppWindow, CheckCircle2, LogOut, ExternalLink, ShieldCheck } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { LASTFM_API_KEY, LASTFM_SECRET, fetchSessionFromToken } from "../utils/lastfmApi";
+import { User, Sliders, AppWindow, CheckCircle2, LogOut, ExternalLink, ShieldCheck, RefreshCw, Key } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const ScrobblingScreen: React.FC = () => {
   const [scrobbleEnabled, setScrobbleEnabled] = useState<boolean>(() => {
@@ -19,6 +21,10 @@ export const ScrobblingScreen: React.FC = () => {
   const [showManualDialog, setShowManualDialog] = useState(false);
   const [manualKeyInput, setManualKeyInput] = useState("");
   const [manualUserInput, setManualUserInput] = useState("");
+
+  const [tokenInput, setTokenInput] = useState("");
+  const [isVerifyingToken, setIsVerifyingToken] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const [selectedApps, setSelectedApps] = useState<string[]>([
     "Spotify",
@@ -51,9 +57,49 @@ export const ScrobblingScreen: React.FC = () => {
     }
   };
 
-  const handleConnectBrowser = () => {
+  const handleConnectBrowser = async () => {
+    setAuthError(null);
     const authUrl = `https://www.last.fm/api/auth/?api_key=${LASTFM_API_KEY}&cb=https://maruchansquigle.vercel.app/lastnotif-auth.html`;
-    window.open(authUrl, "_blank");
+    try {
+      await openUrl(authUrl);
+    } catch (e) {
+      console.warn("openUrl failed, falling back to window.open:", e);
+      try {
+        window.open(authUrl, "_blank");
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const handleVerifyToken = async () => {
+    const raw = tokenInput.trim();
+    if (!raw) return;
+
+    // Handle token or full URL pasted from callback
+    let token = raw;
+    if (raw.includes("token=")) {
+      const match = raw.match(/token=([a-zA-Z0-9]+)/);
+      if (match && match[1]) {
+        token = match[1];
+      }
+    }
+
+    setIsVerifyingToken(true);
+    setAuthError(null);
+
+    try {
+      const session = await fetchSessionFromToken(token);
+      setSessionKey(session.key);
+      setUsername(session.name);
+      localStorage.setItem("maudio_session_key", session.key);
+      localStorage.setItem("maudio_username", session.name);
+      setTokenInput("");
+    } catch (e: any) {
+      setAuthError(e.message || "Failed to authorize session token");
+    } finally {
+      setIsVerifyingToken(false);
+    }
   };
 
   const handleSaveManual = () => {
@@ -82,11 +128,15 @@ export const ScrobblingScreen: React.FC = () => {
   }, [scrobblePercentage]);
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.22 }}
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "16px 24px 36px",
+        padding: "20px 28px 36px",
         display: "flex",
         flexDirection: "column",
         gap: "16px",
@@ -136,8 +186,11 @@ export const ScrobblingScreen: React.FC = () => {
           </div>
 
           {!sessionKey ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <button
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {/* Browser Connect Button */}
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
                 onClick={handleConnectBrowser}
                 style={{
                   padding: "14px 20px",
@@ -157,8 +210,74 @@ export const ScrobblingScreen: React.FC = () => {
                 <img src="/ic_lastfm_logo.png" alt="Last.fm" style={{ height: "24px", width: "auto", objectFit: "contain" }} />
                 <span>CONNECT VIA BROWSER</span>
                 <ExternalLink size={16} />
-              </button>
+              </motion.button>
 
+              {/* Paste Token / Verify Box */}
+              <div
+                className="glass-card"
+                style={{
+                  padding: "14px 18px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  background: "rgba(24, 18, 43, 0.5)",
+                }}
+              >
+                <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.72)" }}>
+                  After approving in your browser, paste the authorization <strong>token</strong> or <strong>callback URL</strong> below:
+                </div>
+
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <input
+                    type="text"
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    placeholder="Paste token or URL (e.g. ?token=...)"
+                    style={{
+                      flex: 1,
+                      background: "rgba(0, 0, 0, 0.35)",
+                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      borderRadius: "10px",
+                      padding: "8px 14px",
+                      color: "#f4f4f9fa",
+                      fontSize: "12.5px",
+                      outline: "none",
+                    }}
+                  />
+
+                  <motion.button
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleVerifyToken}
+                    disabled={isVerifyingToken || !tokenInput.trim()}
+                    style={{
+                      padding: "0 18px",
+                      borderRadius: "10px",
+                      background: "var(--maru-accent-pink)",
+                      border: "none",
+                      color: "#ffffff",
+                      fontWeight: 800,
+                      fontSize: "11.5px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      opacity: tokenInput.trim() ? 1 : 0.6,
+                    }}
+                  >
+                    {isVerifyingToken ? <RefreshCw size={14} className="animate-spin" /> : <Key size={14} />}
+                    <span>{isVerifyingToken ? "VERIFYING..." : "AUTHORIZE"}</span>
+                  </motion.button>
+                </div>
+
+                {authError && (
+                  <div style={{ fontSize: "11px", color: "var(--maru-danger)", fontWeight: 600 }}>
+                    ⚠️ {authError}
+                  </div>
+                )}
+              </div>
+
+              {/* Manual Session Key Dialog Trigger */}
               <button
                 onClick={() => {
                   setManualKeyInput(sessionKey);
@@ -186,6 +305,7 @@ export const ScrobblingScreen: React.FC = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                border: "1px solid rgba(74, 222, 128, 0.3)",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -200,18 +320,27 @@ export const ScrobblingScreen: React.FC = () => {
                 </div>
               </div>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={handleDisconnect}
                 style={{
-                  background: "transparent",
-                  border: "none",
+                  background: "rgba(255, 69, 58, 0.15)",
+                  border: "1px solid rgba(255, 69, 58, 0.3)",
+                  borderRadius: "8px",
                   color: "var(--maru-danger)",
                   cursor: "pointer",
-                  padding: "8px",
+                  padding: "8px 12px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
                 }}
               >
-                <LogOut size={20} />
-              </button>
+                <LogOut size={15} />
+                <span>Disconnect</span>
+              </motion.button>
             </div>
           )}
 
@@ -223,22 +352,23 @@ export const ScrobblingScreen: React.FC = () => {
             </span>
           </div>
 
-          <div className="glass-card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "13.5px", color: "#f4f4f9fa" }}>Trigger Threshold</span>
-              <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--maru-accent-pink)" }}>
-                {scrobblePercentage}%
-              </span>
+          <div className="glass-card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px" }}>
+              <span style={{ color: "rgba(235, 235, 245, 0.72)" }}>Trigger Threshold</span>
+              <span style={{ color: "var(--maru-accent-pink)", fontWeight: 800 }}>{scrobblePercentage}%</span>
             </div>
 
             <input
               type="range"
-              min={10}
-              max={90}
-              step={10}
+              min="10"
+              max="90"
               value={scrobblePercentage}
               onChange={(e) => setScrobblePercentage(parseInt(e.target.value, 10))}
-              style={{ width: "100%", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
+              style={{
+                width: "100%",
+                accentColor: "var(--maru-accent-pink)",
+                cursor: "pointer",
+              }}
             />
           </div>
 
@@ -250,67 +380,80 @@ export const ScrobblingScreen: React.FC = () => {
             </span>
           </div>
 
-          <div className="glass-card" style={{ padding: "16px 18px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {allApps.map((app) => {
-              const isSelected = selectedApps.includes(app);
-              return (
-                <button
-                  key={app}
-                  onClick={() => handleToggleApp(app)}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "24px",
-                    background: isSelected ? "rgba(232, 93, 159, 0.25)" : "rgba(255, 255, 255, 0.1)",
-                    border: isSelected
-                      ? "1px solid var(--maru-accent-pink)"
-                      : "1px solid rgba(255, 255, 255, 0.094)",
-                    color: isSelected ? "#f4f4f9fa" : "rgba(235, 235, 245, 0.72)",
-                    fontSize: "12px",
-                    fontWeight: isSelected ? 700 : 500,
-                    cursor: "pointer",
-                    transition: "all 120ms ease",
-                  }}
-                >
-                  {app}
-                </button>
-              );
-            })}
+          <div className="glass-card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+              {allApps.map((app) => {
+                const isSelected = selectedApps.includes(app);
+                return (
+                  <motion.button
+                    key={app}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleToggleApp(app)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "20px",
+                      background: isSelected ? "rgba(232, 93, 159, 0.25)" : "rgba(255, 255, 255, 0.08)",
+                      border: isSelected
+                        ? "1.5px solid var(--maru-accent-pink)"
+                        : "1px solid rgba(255, 255, 255, 0.094)",
+                      color: isSelected ? "#f4f4f9fa" : "rgba(235, 235, 245, 0.72)",
+                      fontSize: "11px",
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {app}
+                  </motion.button>
+                );
+              })}
+            </div>
           </div>
         </>
       )}
 
-      {/* Manual Dialog */}
+      {/* Manual Key Modal */}
       {showManualDialog && (
         <div
           style={{
             position: "fixed",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
             background: "rgba(0,0,0,0.7)",
             backdropFilter: "blur(8px)",
+            zIndex: 200,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 200,
+            padding: "20px",
           }}
         >
-          <div
+          <motion.div
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
             className="glass-card"
             style={{
-              width: "400px",
+              width: "100%",
+              maxWidth: "440px",
               padding: "24px",
               display: "flex",
               flexDirection: "column",
               gap: "14px",
-              border: "1.5px solid rgba(232, 93, 159, 0.6)",
+              border: "1px solid rgba(232, 93, 159, 0.5)",
             }}
           >
             <div style={{ fontSize: "16px", fontWeight: 800, color: "#f4f4f9fa" }}>
-              Manual Credentials
+              Enter Session Key
+            </div>
+            <div style={{ fontSize: "12px", color: "rgba(235, 235, 245, 0.72)" }}>
+              If you have an existing Last.fm 32-character session key or auth token:
             </div>
 
             <div>
-              <div style={{ fontSize: "11px", color: "rgba(235, 235, 245, 0.72)", marginBottom: "4px" }}>
-                Last.fm Username
+              <div style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", marginBottom: "4px" }}>
+                LAST.FM USERNAME
               </div>
               <input
                 type="text"
@@ -322,7 +465,7 @@ export const ScrobblingScreen: React.FC = () => {
                   background: "rgba(0,0,0,0.3)",
                   border: "1px solid rgba(255,255,255,0.094)",
                   borderRadius: "10px",
-                  padding: "10px",
+                  padding: "10px 14px",
                   color: "#f4f4f9fa",
                   fontSize: "13px",
                   outline: "none",
@@ -331,20 +474,20 @@ export const ScrobblingScreen: React.FC = () => {
             </div>
 
             <div>
-              <div style={{ fontSize: "11px", color: "rgba(235, 235, 245, 0.72)", marginBottom: "4px" }}>
-                Session Key (32-character hex)
+              <div style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", marginBottom: "4px" }}>
+                SESSION KEY (32 CHARACTERS)
               </div>
               <input
                 type="text"
                 value={manualKeyInput}
                 onChange={(e) => setManualKeyInput(e.target.value)}
-                placeholder="e.g. 4a9f5581a9bc..."
+                placeholder="e.g. 4a9f5581a9bc20a6e16ffc0e..."
                 style={{
                   width: "100%",
                   background: "rgba(0,0,0,0.3)",
                   border: "1px solid rgba(255,255,255,0.094)",
                   borderRadius: "10px",
-                  padding: "10px",
+                  padding: "10px 14px",
                   color: "#f4f4f9fa",
                   fontSize: "13px",
                   outline: "none",
@@ -352,16 +495,18 @@ export const ScrobblingScreen: React.FC = () => {
               />
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+            <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
               <button
                 onClick={() => setShowManualDialog(false)}
                 style={{
                   flex: 1,
-                  padding: "10px",
+                  padding: "10px 0",
                   borderRadius: "10px",
-                  background: "transparent",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  color: "rgba(235,235,245,0.72)",
+                  background: "rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.094)",
+                  color: "#f4f4f9fa",
+                  fontSize: "12px",
+                  fontWeight: 700,
                   cursor: "pointer",
                 }}
               >
@@ -371,11 +516,12 @@ export const ScrobblingScreen: React.FC = () => {
                 onClick={handleSaveManual}
                 style={{
                   flex: 1,
-                  padding: "10px",
+                  padding: "10px 0",
                   borderRadius: "10px",
                   background: "var(--maru-accent-pink)",
                   border: "none",
                   color: "#ffffff",
+                  fontSize: "12px",
                   fontWeight: 800,
                   cursor: "pointer",
                 }}
@@ -383,9 +529,9 @@ export const ScrobblingScreen: React.FC = () => {
                 Save
               </button>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
