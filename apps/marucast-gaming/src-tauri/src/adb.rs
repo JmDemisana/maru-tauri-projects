@@ -226,16 +226,28 @@ pub fn get_connected_devices() -> Result<Vec<AdbDevice>, String> {
             let is_wireless = serial.contains(':') || serial.contains("._adb-tls");
 
             // Query Android & SDK version
-            let android_version = run_adb(&["-s", &serial, "shell", "getprop", "ro.build.version.release"])
-                .unwrap_or_else(|_| "14".to_string())
+            let (android_version, sdk_version) = if state == "device" {
+                let android_version = run_adb(&[
+                    "-s",
+                    &serial,
+                    "shell",
+                    "getprop",
+                    "ro.build.version.release",
+                ])
+                .unwrap_or_else(|_| "Unknown".to_string())
                 .trim()
                 .to_string();
 
-            let sdk_version = run_adb(&["-s", &serial, "shell", "getprop", "ro.build.version.sdk"])
-                .unwrap_or_else(|_| "34".to_string())
-                .trim()
-                .parse::<i32>()
-                .unwrap_or(34);
+                let sdk_version = run_adb(&["-s", &serial, "shell", "getprop", "ro.build.version.sdk"])
+                    .unwrap_or_else(|_| "0".to_string())
+                    .trim()
+                    .parse::<i32>()
+                    .unwrap_or(0);
+
+                (android_version, sdk_version)
+            } else {
+                ("Unavailable".to_string(), 0)
+            };
 
             let supports_multi_audio = sdk_version >= 33;
 
@@ -299,8 +311,7 @@ pub fn get_installed_apps(device: &str) -> Result<Vec<AndroidApp>, String> {
         "android.intent.action.MAIN",
         "-c",
         "android.intent.category.LAUNCHER",
-    ])
-    .unwrap_or_default();
+    ])?;
 
     let mut apps = Vec::new();
 
@@ -385,36 +396,38 @@ pub fn get_recent_tasks(device: &str) -> Result<Vec<RecentTask>, String> {
         device.to_string()
     };
 
-    let output = run_adb(&["-s", &target, "shell", "dumpsys", "activity", "recents"]).unwrap_or_default();
+    let output = run_adb(&["-s", &target, "shell", "dumpsys", "activity", "recents"])?;
     let mut tasks = Vec::new();
 
     for line in output.lines() {
-        if line.contains("realActivity=") || line.contains("origActivity=") {
-            if let Some(idx) = line.find("realActivity=") {
-                let sub = &line[idx + 13..];
-                if let Some(end) = sub.find(|c: char| c.is_whitespace() || c == '}') {
-                    let activity = &sub[..end];
-                    let raw_pkg = activity.split('/').next().unwrap_or(activity);
-                    let pkg = raw_pkg.trim_matches(|c| c == '{' || c == '}' || c == '"' || c == '\'' || char::is_whitespace(c));
+        let activity = line
+            .find("realActivity=")
+            .map(|idx| &line[idx + 13..])
+            .or_else(|| line.find("origActivity=").map(|idx| &line[idx + 13..]));
 
-                    // Filter out internal system launchers and background daemons
-                    if pkg.is_empty()
-                        || pkg.contains("launcher")
-                        || pkg.contains("SecDesktopLauncher")
-                        || pkg.contains("systemui")
-                        || pkg.contains("daemonapp")
-                    {
-                        continue;
-                    }
+        if let Some(sub) = activity {
+            if let Some(end) = sub.find(|c: char| c.is_whitespace() || c == '}') {
+                let activity = &sub[..end];
+                let raw_pkg = activity.split('/').next().unwrap_or(activity);
+                let pkg = raw_pkg.trim_matches(|c| c == '{' || c == '}' || c == '"' || c == '\'' || char::is_whitespace(c));
 
-                    let label = get_friendly_app_name(pkg);
-                    
-                    tasks.push(RecentTask {
-                        package_name: pkg.to_string(),
-                        label,
-                        task_id: "Recent".to_string(),
-                    });
+                // Filter out internal system launchers and background daemons
+                if pkg.is_empty()
+                    || pkg.contains("launcher")
+                    || pkg.contains("SecDesktopLauncher")
+                    || pkg.contains("systemui")
+                    || pkg.contains("daemonapp")
+                {
+                    continue;
                 }
+
+                let label = get_friendly_app_name(pkg);
+
+                tasks.push(RecentTask {
+                    package_name: pkg.to_string(),
+                    label,
+                    task_id: "Recent".to_string(),
+                });
             }
         }
     }

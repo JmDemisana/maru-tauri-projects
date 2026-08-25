@@ -16,10 +16,10 @@
         "title": "Marucast for Gaming",
         "width": 1440,
         "height": 900,
-        "maximized": true,
+        "maximized": false,
         "fullscreen": false,
-        "resizable": true,
-        "maximizable": true,
+        "resizable": false,
+        "maximizable": false,
         "decorations": false,
         "shadow": false,
         "visible": false

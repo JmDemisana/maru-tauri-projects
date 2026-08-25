@@ -211,7 +211,7 @@ export const App: React.FC = () => {
       <TitleBar title="Marucast for Gaming" />
 
       {/* Main App Body */}
-      <div style={{ display: "flex", flex: 1, height: "calc(100vh - 36px)", overflow: "hidden" }}>
+      <div style={{ display: "flex", flex: 1, height: "calc(100vh - 32px)", overflow: "hidden" }}>
         <DesktopSidebar
           currentScreen={currentScreen}
           onSelectScreen={setCurrentScreen}
@@ -231,7 +231,6 @@ export const App: React.FC = () => {
               onUninstallApp={handleUninstallApp}
               activePackageNames={activeSessions.map((s) => s.package_name)}
               audioMode={audioMode}
-              deviceSerial={activeDevice?.serial}
             />
           )}
 
@@ -245,7 +244,6 @@ export const App: React.FC = () => {
               onCloseTask={handleCloseTask}
               onCloseAllTasks={handleCloseAllTasks}
               isLoading={isLoading}
-              deviceSerial={activeDevice?.serial}
             />
           )}
 

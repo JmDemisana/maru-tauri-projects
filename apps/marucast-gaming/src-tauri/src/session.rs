@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::thread::{sleep, spawn};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -88,7 +88,11 @@ impl SessionManager {
         dpi: Option<i32>,
     ) -> Result<AppSession, String> {
         let scrcpy_path = Self::get_scrcpy_path()?;
-        let session_id = format!("{}_{}", package_name, std::time::SystemTime::now().elapsed().unwrap_or_default().as_millis());
+        let started_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let session_id = format!("{}_{}", package_name, started_at);
         let window_title = format!("{} - Marucast for Gaming", app_name);
         let target_dpi = dpi.unwrap_or(240);
 
@@ -112,7 +116,7 @@ impl SessionManager {
         let (screen_w, screen_h) = (1920, 1080);
 
         // 2. High-Performance Borderless Display (Customizable Density):
-        cmd.arg(format!("--tcpip={}", device))
+        cmd.arg(format!("--serial={}", device))
             .arg(format!("--new-display={}x{}/{}", screen_w, screen_h, target_dpi))
             .arg("--fullscreen")
             .arg("--window-borderless")
@@ -143,7 +147,7 @@ impl SessionManager {
 
         let child = cmd.spawn().map_err(|e| format!("Failed to spawn scrcpy session: {}", e))?;
 
-        let mut lock = self.sessions.lock().unwrap();
+        let mut lock = self.sessions.lock().map_err(|e| e.to_string())?;
         lock.insert(session_id.clone(), child);
 
         // Spawn background supervisor to listen for Alt+Q / Alt+F4 and monitor lifecycle
@@ -197,9 +201,10 @@ impl SessionManager {
 
                                 if alt_down && q_down {
                                     println!("[Supervisor] Alt+Q pressed. Closing fullscreen cast window.");
-                                    let mut lock = sessions_clone.lock().unwrap();
-                                    if let Some(mut child) = lock.remove(&session_id_clone) {
-                                        let _ = child.kill();
+                                    if let Ok(mut lock) = sessions_clone.lock() {
+                                        if let Some(mut child) = lock.remove(&session_id_clone) {
+                                            let _ = child.kill();
+                                        }
                                     }
                                     break;
                                 }
@@ -225,14 +230,15 @@ impl SessionManager {
                         let text = String::from_utf8_lossy(&out.stdout);
                         
                         // If scrcpy window closed by user
-                        let mut lock = sessions_clone.lock().unwrap();
-                        if let Some(child) = lock.get_mut(&session_id_clone) {
-                            if let Ok(Some(_)) = child.try_wait() {
-                                lock.remove(&session_id_clone);
+                        if let Ok(mut lock) = sessions_clone.lock() {
+                            if let Some(child) = lock.get_mut(&session_id_clone) {
+                                if let Ok(Some(_)) = child.try_wait() {
+                                    lock.remove(&session_id_clone);
+                                    break;
+                                }
+                            } else {
                                 break;
                             }
-                        } else {
-                            break;
                         }
 
                         // Check if current focused window belongs to app
@@ -246,8 +252,10 @@ impl SessionManager {
 
                         if is_launcher_focused && !has_focus {
                             println!("[Supervisor] App {} exited. Closing session window.", pkg_clone);
-                            if let Some(mut child) = lock.remove(&session_id_clone) {
-                                let _ = child.kill();
+                            if let Ok(mut lock) = sessions_clone.lock() {
+                                if let Some(mut child) = lock.remove(&session_id_clone) {
+                                    let _ = child.kill();
+                                }
                             }
                             break;
                         }
@@ -268,7 +276,7 @@ impl SessionManager {
 
     /// Stops a running app session
     pub fn stop_session(&self, session_id: &str) -> Result<bool, String> {
-        let mut lock = self.sessions.lock().unwrap();
+        let mut lock = self.sessions.lock().map_err(|e| e.to_string())?;
         if let Some(mut child) = lock.remove(session_id) {
             child.kill().map_err(|e| format!("Failed to stop session: {}", e))?;
             Ok(true)

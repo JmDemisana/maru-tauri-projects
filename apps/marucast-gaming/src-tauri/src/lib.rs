@@ -94,14 +94,14 @@ fn launch_app(
     dpi: Option<i32>,
     state: State<Mutex<AppState>>,
 ) -> Result<AppSession, String> {
-    let lock = state.lock().unwrap();
+    let lock = state.lock().map_err(|e| e.to_string())?;
     lock.session_manager
         .launch_session(&device, &package_name, &app_name, &audio_mode, dpi)
 }
 
 #[tauri::command]
 fn stop_app(session_id: String, state: State<Mutex<AppState>>) -> Result<bool, String> {
-    let lock = state.lock().unwrap();
+    let lock = state.lock().map_err(|e| e.to_string())?;
     lock.session_manager.stop_session(&session_id)
 }
 
@@ -168,8 +168,14 @@ pub fn run() {
         ])
         .setup(|app| {
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
-                let _ = window.maximize();
+                let _ = window.set_resizable(false);
+                let _ = window.set_maximizable(false);
+
+                #[cfg(target_os = "windows")]
+                fit_window_to_monitor_work_area(&window, 0, 0);
+
                 let _ = window.show();
+                let _ = window.set_focus();
             }
             Ok(())
         })

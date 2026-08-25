@@ -19,7 +19,6 @@ interface AppHubScreenProps {
   onUninstallApp: (app: AndroidApp) => void;
   activePackageNames: string[];
   audioMode: AudioRoutingMode;
-  deviceSerial?: string;
 }
 
 export const AppHubScreen: React.FC<AppHubScreenProps> = ({
@@ -30,7 +29,6 @@ export const AppHubScreen: React.FC<AppHubScreenProps> = ({
   onUninstallApp,
   activePackageNames,
   audioMode,
-  deviceSerial,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
@@ -253,7 +251,6 @@ export const AppHubScreen: React.FC<AppHubScreenProps> = ({
                     packageName={app.package_name}
                     category={app.category}
                     size={42}
-                    deviceSerial={deviceSerial}
                   />
 
                   <div style={{ overflow: "hidden", flex: 1 }}>

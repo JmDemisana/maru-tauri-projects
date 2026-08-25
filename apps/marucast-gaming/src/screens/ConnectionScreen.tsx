@@ -7,7 +7,6 @@ import {
   Link,
   ShieldCheck,
   CheckCircle2,
-  Cpu,
 } from "lucide-react";
 
 interface ConnectionScreenProps {

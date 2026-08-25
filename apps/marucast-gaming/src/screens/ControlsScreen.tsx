@@ -10,8 +10,6 @@ import {
   Monitor,
   AlertCircle,
   CheckCircle2,
-  Sparkles,
-  Sliders,
 } from "lucide-react";
 
 interface ControlsScreenProps {

@@ -18,7 +18,6 @@ interface RecentTasksScreenProps {
   onCloseTask: (packageName: string) => void;
   onCloseAllTasks: () => void;
   isLoading: boolean;
-  deviceSerial?: string;
 }
 
 export const RecentTasksScreen: React.FC<RecentTasksScreenProps> = ({
@@ -30,7 +29,6 @@ export const RecentTasksScreen: React.FC<RecentTasksScreenProps> = ({
   onCloseTask,
   onCloseAllTasks,
   isLoading,
-  deviceSerial,
 }) => {
   return (
     <div
@@ -208,7 +206,7 @@ export const RecentTasksScreen: React.FC<RecentTasksScreenProps> = ({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", overflow: "hidden", flex: 1 }}>
-                  <AppIcon packageName={task.package_name} size={38} deviceSerial={deviceSerial} />
+                  <AppIcon packageName={task.package_name} size={38} />
                   <div style={{ overflow: "hidden", flex: 1 }}>
                     <div
                       style={{
