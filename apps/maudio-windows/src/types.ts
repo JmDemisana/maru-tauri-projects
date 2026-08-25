@@ -37,6 +37,11 @@ export interface LastfmProfile {
   trackCount?: number;
 }
 
+export interface LastfmAuth {
+  username: string;
+  sessionKey: string;
+}
+
 export interface MediaState {
   title: string | null;
   artist: string | null;

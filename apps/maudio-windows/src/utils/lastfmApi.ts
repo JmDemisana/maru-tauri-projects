@@ -176,6 +176,37 @@ export async function fetchSessionFromToken(token: string): Promise<{ key: strin
   };
 }
 
+export async function fetchProfileFromSession(sessionKey: string): Promise<LastfmProfile> {
+  const cleanKey = sessionKey.trim();
+  if (!cleanKey) {
+    throw new Error("Missing Last.fm session key");
+  }
+
+  const params: Record<string, string> = {
+    api_key: LASTFM_API_KEY,
+    method: "user.getInfo",
+    sk: cleanKey,
+  };
+  const api_sig = generateApiSignature(params);
+  const url = `${BASE_URL}?method=user.getInfo&api_key=${LASTFM_API_KEY}&sk=${encodeURIComponent(cleanKey)}&api_sig=${api_sig}&format=json`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error || !data.user) {
+    throw new Error(data.message || "Failed to retrieve Last.fm profile from session");
+  }
+
+  const u = data.user;
+  const avatar = u?.image?.find((i: any) => i.size === "large")?.["#text"] || "";
+  return {
+    username: u?.name || "",
+    realName: u?.realname,
+    avatarUrl: avatar,
+    totalScrobbles: parseInt(u?.playcount || "0", 10),
+    artistCount: parseInt(u?.artist_count || "0", 10),
+    trackCount: parseInt(u?.track_count || "0", 10),
+  };
+}
+
 export function isAppAllowedForScrobbling(appName: string | null | undefined, selectedApps: string[]): boolean {
   if (!appName) return true;
   const cleanName = appName.toLowerCase().trim();
@@ -184,4 +215,3 @@ export function isAppAllowedForScrobbling(appName: string | null | undefined, se
     return cleanName.includes(a) || a.includes(cleanName);
   });
 }
-

@@ -32,6 +32,10 @@ const WIN11 = {
   },
 };
 
+type TauriWindowControlStyle = React.CSSProperties & {
+  WebkitAppRegion?: "drag" | "no-drag";
+};
+
 export const TitleBar: React.FC<TitleBarProps> = ({
   title = "Maru App",
   iconSrc = "/icon.png",
@@ -273,7 +277,7 @@ const Win11Button: React.FC<Win11ButtonProps> = ({
         color: hovered && hoverTextColor ? hoverTextColor : textColor,
         transition: "background-color 0.1s ease, color 0.1s ease",
         WebkitAppRegion: "no-drag",
-      }}
+      } as TauriWindowControlStyle}
     >
       {children}
     </button>

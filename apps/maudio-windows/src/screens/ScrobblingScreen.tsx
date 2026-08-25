@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { LASTFM_API_KEY, LASTFM_SECRET, fetchSessionFromToken } from "../utils/lastfmApi";
+import { LASTFM_API_KEY, fetchProfileFromSession, fetchSessionFromToken } from "../utils/lastfmApi";
+import type { LastfmAuth } from "../types";
 import { User, Sliders, AppWindow, CheckCircle2, LogOut, ExternalLink, ShieldCheck, RefreshCw, Key } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ScrobblingScreenProps {
   username: string;
-  onUsernameChange: (newUsername: string) => void;
+  sessionKey: string;
+  onAuthChange: (auth: LastfmAuth) => void;
+  onDisconnect: () => void;
 }
 
-export const ScrobblingScreen: React.FC<ScrobblingScreenProps> = ({ username, onUsernameChange }) => {
+export const ScrobblingScreen: React.FC<ScrobblingScreenProps> = ({
+  username,
+  sessionKey,
+  onAuthChange,
+  onDisconnect,
+}) => {
   const [scrobbleEnabled, setScrobbleEnabled] = useState<boolean>(() => {
     return localStorage.getItem("maudio_scrobble_enabled") !== "false";
-  });
-  const [sessionKey, setSessionKey] = useState<string>(() => {
-    return localStorage.getItem("maudio_session_key") || "";
   });
   const [scrobblePercentage, setScrobblePercentage] = useState<number>(() => {
     return parseInt(localStorage.getItem("maudio_scrobble_pct") || "50", 10);
@@ -130,10 +135,7 @@ export const ScrobblingScreen: React.FC<ScrobblingScreenProps> = ({ username, on
 
     try {
       const session = await fetchSessionFromToken(token);
-      setSessionKey(session.key);
-      localStorage.setItem("maudio_session_key", session.key);
-      localStorage.setItem("maudio_username", session.name);
-      onUsernameChange(session.name);
+      onAuthChange({ username: session.name, sessionKey: session.key });
       setTokenInput("");
     } catch (e: any) {
       setAuthError(e.message || "Failed to authorize session token");
@@ -142,23 +144,30 @@ export const ScrobblingScreen: React.FC<ScrobblingScreenProps> = ({ username, on
     }
   };
 
-  const handleSaveManual = () => {
-    if (manualKeyInput.trim()) {
-      setSessionKey(manualKeyInput.trim());
-      localStorage.setItem("maudio_session_key", manualKeyInput.trim());
+  const handleSaveManual = async () => {
+    const cleanKey = manualKeyInput.trim();
+    let cleanUser = manualUserInput.trim();
+
+    if (!cleanKey && !cleanUser) {
+      return;
     }
-    if (manualUserInput.trim()) {
-      localStorage.setItem("maudio_username", manualUserInput.trim());
-      onUsernameChange(manualUserInput.trim());
+
+    if (cleanKey && !cleanUser) {
+      try {
+        const profile = await fetchProfileFromSession(cleanKey);
+        cleanUser = profile.username;
+      } catch (e: any) {
+        setAuthError(e.message || "Enter a Last.fm username with this session key");
+        return;
+      }
     }
+
+    onAuthChange({ username: cleanUser || username, sessionKey: cleanKey || sessionKey });
     setShowManualDialog(false);
   };
 
   const handleDisconnect = () => {
-    setSessionKey("");
-    localStorage.removeItem("maudio_session_key");
-    localStorage.removeItem("maudio_username");
-    onUsernameChange("");
+    onDisconnect();
   };
 
   useEffect(() => {

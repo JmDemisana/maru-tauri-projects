@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { TitleBar } from "@maru/ui";
-import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem } from "./types";
+import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem, LastfmAuth } from "./types";
 import { DesktopSidebar } from "./components/DesktopSidebar";
 import { NotificationMirrorBottomBar } from "./components/NotificationMirrorBottomBar";
 import { SongDetailModal } from "./components/SongDetailModal";
@@ -15,8 +15,10 @@ import { ScrobblingScreen } from "./screens/ScrobblingScreen";
 import { MarucastScreen } from "./screens/MarucastScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { fetchLastfmProfile, fetchSessionFromToken, scrobbleTrack, updateNowPlaying, isAppAllowedForScrobbling } from "./utils/lastfmApi";
+import { clearLastfmAuth, getLocalLastfmAuth, loadLastfmAuth, normalizeLastfmAuth, saveLastfmAuth } from "./utils/lastfmAuthStorage";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Heart, Sparkles } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 
@@ -25,19 +27,38 @@ export function App() {
   const [previousScreen, setPreviousScreen] = useState<NavigationScreen>(NavigationScreen.DISCOVERY);
   const [selectedArtistDetail, setSelectedArtistDetail] = useState<string>("GUMI");
 
-  const [username, setUsername] = useState(() => {
-    return localStorage.getItem("maudio_username") || "";
-  });
+  const [lastfmAuth, setLastfmAuth] = useState<LastfmAuth>(() => getLocalLastfmAuth());
+  const username = lastfmAuth.username;
+  const sessionKey = lastfmAuth.sessionKey;
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
   const [selectedSongDetail, setSelectedSongDetail] = useState<SongDetailState | null>(null);
 
+  const applyLastfmAuth = (auth: LastfmAuth) => {
+    const next = normalizeLastfmAuth(auth);
+    setLastfmAuth(next);
+    void saveLastfmAuth(next);
+  };
+
   const updateUsername = (newUsername: string) => {
-    const clean = newUsername.trim();
-    setUsername(clean);
-    if (clean) {
-      localStorage.setItem("maudio_username", clean);
-    } else {
-      localStorage.removeItem("maudio_username");
+    applyLastfmAuth({ username: newUsername.trim(), sessionKey });
+  };
+
+  const disconnectLastfm = () => {
+    setLastfmAuth({ username: "", sessionKey: "" });
+    setProfile(null);
+    void clearLastfmAuth();
+  };
+
+  const handleTitleBarClose = async () => {
+    const minimizeToTray = localStorage.getItem("maudio_minimize_to_tray") !== "false";
+    try {
+      if (minimizeToTray) {
+        await invoke("hide_main_window");
+      } else {
+        await getCurrentWindow().close();
+      }
+    } catch (err) {
+      console.error("Failed to close or hide MAudio:", err);
     }
   };
 
@@ -75,10 +96,25 @@ export function App() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    loadLastfmAuth()
+      .then((auth) => {
+        if (active) {
+          setLastfmAuth(auth);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not hydrate Last.fm auth:", err);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Background Scrobbling Engine (respects App Filter, Scrobble Enabled, & Trigger Threshold)
   useEffect(() => {
     const scrobbleEnabled = localStorage.getItem("maudio_scrobble_enabled") !== "false";
-    const sessionKey = localStorage.getItem("maudio_session_key");
 
     if (!scrobbleEnabled || !sessionKey || !mediaState.title || !mediaState.artist || !mediaState.is_playing) {
       return;
@@ -154,7 +190,7 @@ export function App() {
           .catch(() => {});
       }
     }
-  }, [mediaState, username]);
+  }, [mediaState, username, sessionKey]);
 
   // Listen for Last.fm token emitted from local auth loopback server (zero-click handoff)
   useEffect(() => {
@@ -165,9 +201,7 @@ export function App() {
       if (!token) return;
       try {
         const session = await fetchSessionFromToken(token);
-        localStorage.setItem("maudio_session_key", session.key);
-        localStorage.setItem("maudio_username", session.name);
-        updateUsername(session.name);
+        applyLastfmAuth({ username: session.name, sessionKey: session.key });
         setSelectedScreen(NavigationScreen.PROFILE);
       } catch (err) {
         console.error("Auto-auth error from loopback token:", err);
@@ -185,7 +219,7 @@ export function App() {
       if (unlisten1) unlisten1();
       if (unlisten2) unlisten2();
     };
-  }, []);
+  }, [sessionKey]);
 
   useEffect(() => {
     if (username.trim()) {
@@ -232,7 +266,7 @@ export function App() {
       }}
     >
       {/* 1. Custom Faux Windows 11 Title Bar with Monitor Movement (Non-draggable to block Windows Snap) */}
-      <TitleBar title="MAudio" iconSrc="/icon.png" showMoveMonitor={true} draggable={false} />
+      <TitleBar title="MAudio" iconSrc="/icon.png" showMoveMonitor={true} draggable={false} onClose={handleTitleBarClose} />
 
       {/* 2. Main Desktop Body (Sidebar + Content Viewport) */}
       <div
@@ -386,7 +420,9 @@ export function App() {
                 <ScrobblingScreen
                   key="scrobbling"
                   username={username}
-                  onUsernameChange={(u) => updateUsername(u)}
+                  sessionKey={sessionKey}
+                  onAuthChange={applyLastfmAuth}
+                  onDisconnect={disconnectLastfm}
                 />
               )}
 

@@ -7,5 +7,8 @@
   "peerDependencies": {
     "react": ">=18",
     "@tauri-apps/api": ">=2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.8"
   }
 }

@@ -4,8 +4,38 @@ pub mod dsp_engine;
 use media_control::{windows_impl, MediaState};
 use dsp_engine::DspEngine;
 use tauri::{Emitter, Manager};
+use serde::{Deserialize, Serialize};
+use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::PathBuf;
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LastfmAuth {
+    username: String,
+    session_key: String,
+}
+
+fn lastfm_auth_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("lastfm-auth.json"))
+}
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn hide_command_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    use std::os::windows::process::CommandExt;
+    command.creation_flags(CREATE_NO_WINDOW)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_command_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    command
+}
 
 #[cfg(target_os = "windows")]
 fn fit_window_to_monitor_work_area(window: &tauri::WebviewWindow, x: i32, y: i32) {
@@ -70,6 +100,43 @@ fn get_dsp_spectrum_peaks(state: tauri::State<'_, DspEngine>) -> Result<Vec<f32>
 }
 
 #[tauri::command]
+fn load_lastfm_auth(app: tauri::AppHandle) -> Result<LastfmAuth, String> {
+    let path = lastfm_auth_path(&app)?;
+    if !path.exists() {
+        return Ok(LastfmAuth::default());
+    }
+
+    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&raw).map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "camelCase")]
+fn save_lastfm_auth(app: tauri::AppHandle, username: String, session_key: String) -> Result<LastfmAuth, String> {
+    let auth = LastfmAuth {
+        username: username.trim().to_string(),
+        session_key: session_key.trim().to_string(),
+    };
+    let path = lastfm_auth_path(&app)?;
+    let raw = serde_json::to_string_pretty(&auth).map_err(|e| e.to_string())?;
+    fs::write(path, raw).map_err(|e| e.to_string())?;
+    Ok(auth)
+}
+
+#[tauri::command]
+fn clear_lastfm_auth(app: tauri::AppHandle) -> Result<(), String> {
+    let path = lastfm_auth_path(&app)?;
+    if path.exists() {
+        fs::remove_file(path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn hide_main_window(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.hide().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn move_to_next_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
     if monitors.len() <= 1 {
@@ -106,13 +173,13 @@ fn set_auto_start(enabled: bool) -> Result<(), String> {
 
         if enabled {
             let cmd = format!("reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MAudio /t REG_SZ /d \"\\\"{}\\\" --minimized\" /f", exe_str);
-            let output = Command::new("cmd").args(&["/C", &cmd]).output().map_err(|e| e.to_string())?;
+            let output = hide_command_window(Command::new("cmd").args(&["/C", &cmd])).output().map_err(|e| e.to_string())?;
             if !output.status.success() {
                 return Err(String::from_utf8_lossy(&output.stderr).to_string());
             }
         } else {
             let cmd = "reg delete HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MAudio /f";
-            let _ = Command::new("cmd").args(&["/C", cmd]).output();
+            let _ = hide_command_window(Command::new("cmd").args(&["/C", cmd])).output();
         }
     }
     Ok(())
@@ -124,7 +191,7 @@ fn get_auto_start() -> Result<bool, String> {
     {
         use std::process::Command;
         let cmd = "reg query HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v MAudio";
-        let output = Command::new("cmd").args(&["/C", cmd]).output().map_err(|e| e.to_string())?;
+        let output = hide_command_window(Command::new("cmd").args(&["/C", cmd])).output().map_err(|e| e.to_string())?;
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             return Ok(stdout.contains("MAudio"));
@@ -194,6 +261,10 @@ pub fn run() {
             get_media_state,
             send_media_control,
             move_to_next_monitor,
+            load_lastfm_auth,
+            save_lastfm_auth,
+            clear_lastfm_auth,
+            hide_main_window,
             set_auto_start,
             get_auto_start,
             start_native_dsp,

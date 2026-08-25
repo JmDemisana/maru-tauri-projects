@@ -31,6 +31,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setUserInput(username || "");
+  }, [username]);
+
   const handleSelectPlatform = (p: string) => {
     setPreferredPlatform(p);
     localStorage.setItem("maudio_preferred_platform", p);
@@ -49,19 +53,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
   const handleToggleAutoStart = async (val: boolean) => {
     setAutoStart(val);
     try {
-      await invoke("set_auto_start", { enable: val });
+      await invoke("set_auto_start", { enabled: val });
     } catch (e) {
       console.error("Failed to toggle autostart:", e);
     }
   };
 
   const handleSaveUsername = () => {
-    if (userInput.trim()) {
-      onSaveUsername(userInput.trim());
-      localStorage.setItem("maudio_username", userInput.trim());
-      setSavedUserMsg(true);
-      setTimeout(() => setSavedUserMsg(false), 2000);
-    }
+    onSaveUsername(userInput.trim());
+    setSavedUserMsg(true);
+    setTimeout(() => setSavedUserMsg(false), 2000);
   };
 
   return (
