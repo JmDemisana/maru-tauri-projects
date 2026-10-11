@@ -24,6 +24,7 @@ const MODELS = [
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
   { id: "gpt-5.4", label: "GPT-5.4" },
+  { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
   { id: "gpt-4o", label: "GPT-4o" },
   { id: "gpt-4o-mini", label: "GPT-4o Mini" },
   { id: "o3-mini", label: "o3-mini" },
