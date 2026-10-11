@@ -21,6 +21,8 @@ const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
 const MODELS = [
   { id: "auto", label: "Auto" },
   { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+  { id: "gemini-3.8-flash-chill", label: "Gemini 3.8 Flash (Chill)" },
+  { id: "gemini-2.5-flash-chill", label: "Gemini 2.5 Flash (Chill)" },
   { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
   { id: "gpt-5.4", label: "GPT-5.4" },
