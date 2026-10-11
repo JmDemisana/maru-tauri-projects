@@ -29,6 +29,10 @@ const MODELS = [
   { id: "gpt-4o-mini", label: "GPT-4o Mini" },
   { id: "o3-mini", label: "o3-mini" },
   { id: "openrouter-auto", label: "OpenRouter Auto" },
+  { id: "openrouter-llama", label: "Llama 3.3 70B" },
+  { id: "openrouter-gemma", label: "Gemma 3 27B" },
+  { id: "openrouter-deepseek", label: "DeepSeek V3" },
+  { id: "openrouter-qwen", label: "Qwen3 235B" },
 ];
 
 const MAX_TOOL_STEPS = 8;
