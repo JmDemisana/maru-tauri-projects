@@ -1,0 +1,19 @@
+[package]
+name = "nanami-ai-desktop"
+version = "0.1.0"
+description = "Nanami AI desktop agent piggybacking the live site"
+authors = ["Maru"]
+edition = "2021"
+
+[lib]
+name = "nanami_ai_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true, features = [] }
+
+[dependencies]
+tauri = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }

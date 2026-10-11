@@ -2,15 +2,22 @@
   "name": "maru-tauri-projects",
   "private": true,
   "scripts": {
-    "dev:nami": "pnpm --filter nami-agent tauri dev",
+    "dev:nanami": "pnpm --filter nanami-ai-desktop tauri dev",
     "dev:files": "pnpm --filter files-companion tauri dev",
     "dev:monika": "pnpm --filter monika-piano tauri dev",
     "dev:maudio": "pnpm --filter maudio-windows tauri dev",
     "dev:marucast": "pnpm --filter marucast-gaming tauri dev",
-    "build:nami": "pnpm --filter nami-agent tauri build",
+    "dev:kontext": "pnpm --filter kontext tauri dev",
+    "dev:start": "pnpm --filter maru-start tauri dev",
+    "dev:characters": "pnpm --filter maru-characters tauri dev",
+    "build:nanami": "pnpm --filter nanami-ai-desktop tauri build",
     "build:files": "pnpm --filter files-companion tauri build",
     "build:monika": "pnpm --filter monika-piano tauri build",
     "build:maudio": "pnpm --filter maudio-windows tauri build",
-    "build:marucast": "pnpm --filter marucast-gaming tauri build"
+    "build:marucast": "pnpm --filter marucast-gaming tauri build",
+    "build:kontext": "pnpm --filter kontext tauri build",
+    "build:start": "pnpm --filter maru-start tauri build",
+    "build:characters": "pnpm --filter maru-characters tauri build",
+    "build:characters:bundled": "pnpm --filter maru-characters bundle:builtins && pnpm --filter maru-characters tauri build"
   }
 }

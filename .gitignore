@@ -7,7 +7,6 @@ dist/
 
 # Tauri
 apps/*/src-tauri/target/
-apps/nami-agent/desktop-web-dist/
 
 # Companions build output
 companions/*/dist/

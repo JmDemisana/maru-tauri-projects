@@ -1,0 +1,543 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #09090b;
+  color: #f4f4f5;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  user-select: none;
+}
+
+.nd-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: radial-gradient(120% 90% at 50% 0%, #0d1f16 0%, #09090b 55%);
+}
+
+/* ---- custom titlebar ---- */
+.nd-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.7rem;
+  background: rgba(9, 9, 11, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.nd-drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nd-heart {
+  color: #34d399;
+}
+
+.nd-sub {
+  font-size: 0.65rem;
+  font-weight: 400;
+  opacity: 0.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nd-winbtn {
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  width: 2rem;
+  height: 1.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.nd-winbtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.nd-winbtn.nd-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+/* ---- toolbar ---- */
+.nd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.nd-modelsel {
+  flex: 1;
+  min-width: 0;
+  background: #18181b;
+  color: #e4e4e7;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.4rem;
+  outline: none;
+  user-select: auto;
+}
+
+.nd-modelsel option {
+  background: #18181b;
+}
+
+.nd-iconbtn {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #18181b;
+  color: #d4d4d8;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  padding: 0.28rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nd-iconbtn:hover {
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #fff;
+}
+
+.nd-iconbtn.nd-on {
+  border-color: rgba(52, 211, 153, 0.7);
+  color: #6ee7b7;
+}
+
+/* ---- settings panel ---- */
+.nd-settings {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.6rem 0.7rem;
+  font-size: 0.75rem;
+  max-height: 45%;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.nd-settings h4 {
+  margin: 0.5rem 0 0.35rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a1a1aa;
+}
+
+.nd-settings h4:first-child {
+  margin-top: 0;
+}
+
+.nd-permrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-top: 1px dashed rgba(255, 255, 255, 0.07);
+}
+
+.nd-permrow:first-of-type {
+  border-top: none;
+}
+
+.nd-perminfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.nd-perminfo b {
+  display: block;
+  font-size: 0.75rem;
+}
+
+.nd-perminfo span {
+  font-size: 0.68rem;
+  opacity: 0.5;
+}
+
+.nd-risky {
+  color: #fbbf24;
+  font-size: 0.65rem;
+  margin-left: 0.3rem;
+}
+
+.nd-seg {
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.nd-seg button {
+  border: none;
+  background: transparent;
+  color: #a1a1aa;
+  font-size: 0.68rem;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.nd-seg button.nd-sel {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+}
+
+.nd-switchrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.06);
+  cursor: pointer;
+}
+
+.nd-switchrow input {
+  accent-color: #f59e0b;
+}
+
+.nd-switchrow span {
+  font-size: 0.72rem;
+}
+
+.nd-endpoint {
+  width: 100%;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #e4e4e7;
+  font-size: 0.7rem;
+  padding: 0.35rem 0.5rem;
+  outline: none;
+  user-select: auto;
+}
+
+.nd-cwd {
+  margin-top: 0.4rem;
+  font-size: 0.65rem;
+  opacity: 0.45;
+  word-break: break-all;
+}
+
+/* ---- chat log ---- */
+.nd-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  user-select: text;
+}
+
+.nd-empty {
+  margin: auto;
+  text-align: center;
+  opacity: 0.75;
+  max-width: 19rem;
+}
+
+.nd-empty img {
+  width: 4.5rem;
+  height: 4.5rem;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+
+.nd-empty h3 {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.95rem;
+}
+
+.nd-empty p {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  opacity: 0.6;
+}
+
+.nd-msg {
+  max-width: 92%;
+  padding: 0.5rem 0.65rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.nd-msg.nd-user {
+  align-self: flex-end;
+  background: rgba(52, 211, 153, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.nd-msg.nd-model {
+  align-self: flex-start;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nd-who {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  opacity: 0.5;
+  margin-bottom: 0.2rem;
+}
+
+.nd-tool {
+  align-self: stretch;
+  background: rgba(251, 191, 36, 0.05);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.72rem;
+}
+
+.nd-tool.nd-ok {
+  border-color: rgba(52, 211, 153, 0.3);
+  border-left-color: #34d399;
+  background: rgba(52, 211, 153, 0.05);
+}
+
+.nd-tool.nd-denied {
+  border-color: rgba(248, 113, 113, 0.4);
+  border-left-color: #f87171;
+  background: rgba(248, 113, 113, 0.05);
+}
+
+.nd-tool summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.nd-tool pre {
+  margin: 0.4rem 0 0;
+  padding: 0.45rem 0.55rem;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 6px;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow: auto;
+  user-select: text;
+}
+
+/* ---- approval card ---- */
+.nd-approve {
+  align-self: stretch;
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.07);
+  border-radius: 10px;
+  padding: 0.6rem 0.65rem;
+  font-size: 0.75rem;
+}
+
+.nd-approve h5 {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+}
+
+.nd-approve p {
+  margin: 0 0 0.4rem;
+  opacity: 0.65;
+  font-size: 0.7rem;
+}
+
+.nd-approve pre {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.5rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  font-size: 0.68rem;
+  max-height: 9rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+.nd-approw {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.nd-approw button {
+  flex: 1;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.nd-yes {
+  background: rgba(52, 211, 153, 0.2);
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #6ee7b7;
+}
+
+.nd-always {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #d4d4d8;
+}
+
+.nd-no {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.5);
+  color: #fca5a5;
+}
+
+/* ---- thinking + input ---- */
+.nd-thinking {
+  align-self: flex-start;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  padding: 0.2rem 0.3rem;
+}
+
+.nd-inputrow {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+  background: rgba(9, 9, 11, 0.9);
+}
+
+.nd-input {
+  flex: 1;
+  min-width: 0;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #fafafa;
+  font-size: 0.8rem;
+  padding: 0.5rem 0.6rem;
+  outline: none;
+  user-select: auto;
+}
+
+.nd-input:focus {
+  border-color: rgba(52, 211, 153, 0.6);
+}
+
+.nd-send {
+  border: none;
+  border-radius: 8px;
+  background: #059669;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0 0.9rem;
+  cursor: pointer;
+}
+
+.nd-send:hover {
+  background: #10b981;
+}
+
+.nd-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.nd-send.nd-stop {
+  background: #b91c1c;
+}
+
+/* ---- gate ---- */
+.nd-gate {
+  margin: auto;
+  width: min(20rem, 88%);
+  text-align: center;
+  background: rgba(24, 24, 27, 0.9);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: 14px;
+  padding: 1.4rem 1.2rem;
+}
+
+.nd-gate h2 {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.nd-gate p {
+  margin: 0 0 0.9rem;
+  font-size: 0.75rem;
+  opacity: 0.6;
+  line-height: 1.6;
+}
+
+.nd-gate form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.nd-gate input {
+  background: #09090b;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.9rem;
+  letter-spacing: 0.3em;
+  text-align: center;
+  padding: 0.55rem;
+  outline: none;
+  user-select: auto;
+}
+
+.nd-gate input:focus {
+  border-color: rgba(52, 211, 153, 0.6);
+}
+
+.nd-gate button {
+  border: none;
+  border-radius: 8px;
+  background: #059669;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.55rem;
+  cursor: pointer;
+}
+
+.nd-gateerr {
+  color: #fca5a5;
+  font-size: 0.72rem;
+  min-height: 1rem;
+}
