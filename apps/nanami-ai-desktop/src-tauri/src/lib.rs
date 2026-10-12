@@ -160,6 +160,41 @@ fn nami_list_directory(path: String) -> FileOpResult {
     }
 }
 
+/// Find a PowerShell to run commands with, on any OS.
+/// Windows ships `powershell`. macOS/Linux need PowerShell Core (`pwsh`).
+fn find_shell() -> Result<&'static str, String> {
+    if cfg!(target_os = "windows") {
+        return Ok("powershell");
+    }
+    if command_exists("pwsh") {
+        return Ok("pwsh");
+    }
+    Err("No PowerShell found on this machine, baka! Install PowerShell Core (pwsh) from https://aka.ms/powershell and try again.".to_string())
+}
+
+fn command_exists(bin: &str) -> bool {
+    let probe = if cfg!(target_os = "windows") {
+        std::process::Command::new("where")
+            .arg(bin)
+            .output()
+    } else {
+        std::process::Command::new("sh")
+            .args(["-c", &format!("command -v {bin}")])
+            .output()
+    };
+    probe.map(|o| o.status.success()).unwrap_or(false)
+}
+
+#[tauri::command]
+fn nami_get_platform() -> String {
+    std::env::consts::OS.to_string()
+}
+
+#[tauri::command]
+fn nami_get_shell() -> String {
+    find_shell().map(str::to_string).unwrap_or_else(|e| e)
+}
+
 #[tauri::command]
 async fn nami_run_command(command: String, cwd: Option<String>) -> CommandResult {
     let trimmed = command.trim().to_string();
@@ -172,10 +207,23 @@ async fn nami_run_command(command: String, cwd: Option<String>) -> CommandResult
             error: Some("Empty command.".to_string()),
         };
     }
+    let shell = match find_shell() {
+        Ok(s) => s,
+        Err(e) => {
+            return CommandResult {
+                ok: false,
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: -1,
+                error: Some(e),
+            }
+        }
+    };
     // Hard 60s leash so a hung process can't dangle forever.
     let cwd_clone = cwd;
     let run = tokio::task::spawn_blocking(move || {
-        let mut cmd = std::process::Command::new("powershell");
+        // `powershell` and `pwsh` share the same CLI flags.
+        let mut cmd = std::process::Command::new(shell);
         cmd.args(["-NoProfile", "-Command", &trimmed]);
         if let Some(dir) = cwd_clone {
             if !dir.trim().is_empty() {
@@ -240,6 +288,8 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             nami_get_cwd,
+            nami_get_platform,
+            nami_get_shell,
             nami_read_file,
             nami_write_file,
             nami_replace_in_file,
