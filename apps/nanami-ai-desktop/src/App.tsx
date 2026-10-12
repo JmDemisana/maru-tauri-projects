@@ -18,6 +18,10 @@ import {
 
 const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
 
+// The installed shell now uses the native window frame (movable + resizable
+// for free). The custom titlebar below stays only for frameless builds.
+const NATIVE_FRAME = true;
+
 const MODELS = [
   { id: "auto", label: "Auto" },
   { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
@@ -385,6 +389,7 @@ export default function App() {
   if (!authed) {
     return (
       <div className="nd-shell">
+        {!NATIVE_FRAME && (
         <div className="nd-titlebar">
           <div className="nd-drag" data-tauri-drag-region>
             <span className="nd-heart">💚</span> Nanami AI
@@ -402,6 +407,7 @@ export default function App() {
             ✕
           </button>
         </div>
+        )}
         <div className="nd-gate">
           <div style={{ fontSize: "2rem" }}>🔒</div>
           <h2>Secret code, Senpai?</h2>
@@ -428,11 +434,12 @@ export default function App() {
 
   return (
     <div className="nd-shell">
+      {!NATIVE_FRAME && (
       <div className="nd-titlebar">
         <div className="nd-drag" data-tauri-drag-region>
           <span className="nd-heart">💚</span>
           <span>Nanami AI</span>
-          <span className="nd-sub">{isTauri ? "desktop hands on" : "preview (no hands)"}</span>
+          <span className="nd-sub">{isTauri ? "agentic features on" : "preview (no agentic features)"}</span>
         </div>
         <button
           className="nd-winbtn"
@@ -449,6 +456,7 @@ export default function App() {
           ✕
         </button>
       </div>
+      )}
 
       <div className="nd-toolbar">
         <select
