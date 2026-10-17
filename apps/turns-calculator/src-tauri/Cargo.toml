@@ -1,0 +1,19 @@
+[package]
+name = "turns-calculator"
+version = "1.0.0"
+description = "Turns Calculator Mini Desktop App"
+authors = ["Maru"]
+edition = "2021"
+
+[lib]
+name = "turns_calculator_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { workspace = true, features = [] }
+
+[dependencies]
+tauri = { workspace = true }
+tauri-plugin-opener = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "MAudio",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.maru.maudio",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -32,9 +32,21 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFMkU0QjdBQkYyNEIwRjcKUldUM3NDUy9la3N1cmtOY2JFNDNpYlRGamxuVXQwSWRPQW8yZ1p1NWRGeVdUcS9KUC9GOXpIZWgK",
+      "endpoints": [
+        "https://raw.githubusercontent.com/JmDemisana/maru-tauri-projects/main/apps/maudio-windows/updater/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

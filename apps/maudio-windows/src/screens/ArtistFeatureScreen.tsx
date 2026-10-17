@@ -142,7 +142,8 @@ export const ArtistFeatureScreen: React.FC<ArtistFeatureScreenProps> = ({
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {topTracks.map((track, idx) => (
-            <div
+            <button
+              type="button"
               key={idx}
               onClick={() =>
                 onSelectSong({
@@ -150,6 +151,7 @@ export const ArtistFeatureScreen: React.FC<ArtistFeatureScreenProps> = ({
                   artist: artistName,
                 })
               }
+              aria-label={`Open ${track.name} by ${artistName}`}
               className="glass-card-subtle"
               style={{
                 padding: "10px 14px",
@@ -157,6 +159,9 @@ export const ArtistFeatureScreen: React.FC<ArtistFeatureScreenProps> = ({
                 alignItems: "center",
                 justifyContent: "space-between",
                 cursor: "pointer",
+                textAlign: "left",
+                color: "inherit",
+                font: "inherit",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -168,7 +173,7 @@ export const ArtistFeatureScreen: React.FC<ArtistFeatureScreenProps> = ({
                 </span>
               </div>
               <Play size={14} color="var(--maru-accent-pink)" />
-            </div>
+            </button>
           ))}
         </div>
       </div>
@@ -184,6 +189,7 @@ export const ArtistFeatureScreen: React.FC<ArtistFeatureScreenProps> = ({
               <button
                 key={idx}
                 onClick={() => onSelectArtist(art.name)}
+                type="button"
                 style={{
                   padding: "6px 14px",
                   borderRadius: "24px",

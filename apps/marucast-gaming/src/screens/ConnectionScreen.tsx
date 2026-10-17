@@ -16,6 +16,8 @@ interface ConnectionScreenProps {
   onConnect: (ipPort: string) => Promise<void>;
   onPair: (ipPort: string, code: string) => Promise<void>;
   onRefresh: () => void;
+  onAutoReconnect?: () => Promise<string>;
+  onDiscoverMdns?: () => Promise<string[]>;
   isLoading: boolean;
 }
 
@@ -26,9 +28,13 @@ export const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
   onConnect,
   onPair,
   onRefresh,
+  onAutoReconnect,
+  onDiscoverMdns,
   isLoading,
 }) => {
-  const [connectIp, setConnectIp] = useState("192.168.8.199:46791");
+  const [connectIp, setConnectIp] = useState(() => {
+    return localStorage.getItem("marucast_last_ip_port") || "192.168.8.199:46421";
+  });
   const [pairIp, setPairIp] = useState("192.168.8.199:");
   const [pairCode, setPairCode] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -40,9 +46,36 @@ export const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
     setStatusMessage("Connecting to wireless device...");
     try {
       await onConnect(connectIp);
-      setStatusMessage("Connected successfully!");
+      setStatusMessage("Connected successfully! Keepalive heartbeat is active.");
     } catch (e: any) {
       setStatusMessage(`Connection failed: ${e}`);
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleAutoDiscover = async () => {
+    setIsBusy(true);
+    setStatusMessage("Scanning network via mDNS for Wireless ADB services...");
+    try {
+      if (onDiscoverMdns) {
+        const found = await onDiscoverMdns();
+        if (found.length > 0) {
+          setConnectIp(found[0]);
+          setStatusMessage(`Discovered ${found[0]}! Connecting...`);
+          await onConnect(found[0]);
+          setStatusMessage(`Connected to ${found[0]}! Keepalive active.`);
+          return;
+        }
+      }
+      if (onAutoReconnect) {
+        const res = await onAutoReconnect();
+        setStatusMessage(`Auto-reconnected: ${res}`);
+        return;
+      }
+      setStatusMessage("No active mDNS services found. Check that Wireless Debugging is enabled on phone.");
+    } catch (e: any) {
+      setStatusMessage(`Auto-discover failed: ${e}`);
     } finally {
       setIsBusy(false);
     }
@@ -264,24 +297,52 @@ export const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
             }}
           />
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleConnect}
-            disabled={isBusy}
-            style={{
-              padding: "10px",
-              borderRadius: "10px",
-              background: "rgba(112, 165, 255, 0.2)",
-              border: "1px solid rgba(112, 165, 255, 0.5)",
-              color: "var(--maru-accent-blue)",
-              fontSize: "13px",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
-          >
-            Connect Wireless ADB
-          </motion.button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleConnect}
+              disabled={isBusy}
+              style={{
+                flex: 1,
+                padding: "10px",
+                borderRadius: "10px",
+                background: "rgba(112, 165, 255, 0.2)",
+                border: "1px solid rgba(112, 165, 255, 0.5)",
+                color: "var(--maru-accent-blue)",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Connect
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleAutoDiscover}
+              disabled={isBusy}
+              title="Automatically discover wireless ADB port via mDNS and connect"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "10px 14px",
+                borderRadius: "10px",
+                background: "rgba(74, 222, 128, 0.15)",
+                border: "1px solid rgba(74, 222, 128, 0.4)",
+                color: "#4ade80",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <RefreshCw size={13} className={isBusy ? "spin" : ""} />
+              Auto-Discover (mDNS)
+            </motion.button>
+          </div>
         </div>
 
         {/* Pair Box */}

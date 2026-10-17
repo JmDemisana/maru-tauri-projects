@@ -1,0 +1,25 @@
+[package]
+name = "marucast-pc-agent"
+version = "0.1.0"
+description = "Marucast for Gaming - Zero-UI Headless PC Companion Agent"
+authors = ["Maru"]
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tower-http = { version = "0.6", features = ["cors"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Shell",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_UI_Input_KeyboardAndMouse"
+] }

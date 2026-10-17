@@ -1,6 +1,6 @@
 [package]
 name = "nanami-ai-desktop"
-version = "0.1.0"
+version = "1.0.0"
 description = "Nanami AI desktop agent piggybacking the live site"
 authors = ["Maru"]
 edition = "2021"

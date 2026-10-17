@@ -1,0 +1,4 @@
+# Staged build-time builtins, never commit these (2.4GB+).
+src-tauri/resources/models/*.gguf
+src-tauri/resources/bin/*.exe
+src-tauri/resources/bin/*.dll

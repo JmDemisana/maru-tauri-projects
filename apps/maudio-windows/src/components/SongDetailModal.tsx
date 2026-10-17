@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, Music, Sparkles, Disc, Play, Radio } from "lucide-react";
+import { X, ExternalLink, Disc, Play, LoaderCircle } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { fetchArtistTopTracks, fetchSimilarTracks } from "../utils/lastfmApi";
 
 interface SongDetailModalProps {
   song: {
@@ -12,6 +13,7 @@ interface SongDetailModalProps {
   } | null;
   onDismiss: () => void;
   onSelectSong?: (title: string, artist: string) => void;
+  onOpenArtist?: (artist: string) => void;
 }
 
 export function getStreamingUrls(title: string, artist: string, directAppleMusicUrl?: string | null) {
@@ -33,20 +35,28 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
   song,
   onDismiss,
   onSelectSong,
+  onOpenArtist,
 }) => {
   const [resolvedArt, setResolvedArt] = useState<string | null>(null);
   const [appleMusicUrl, setAppleMusicUrl] = useState<string | null>(null);
   const [preferredPlatform, setPreferredPlatform] = useState<string>("Spotify");
   const [similarTracks, setSimilarTracks] = useState<{ title: string; artist: string }[]>([]);
+  const [artistTopTracks, setArtistTopTracks] = useState<{ title: string; artist: string }[]>([]);
+  const [isRelatedTracksLoading, setIsRelatedTracksLoading] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("maudio_preferred_platform") || "Spotify";
+    const saved = localStorage.getItem("maudio_preferred_platform") || "Apple Music";
     setPreferredPlatform(saved);
   }, [song]);
 
   useEffect(() => {
     if (!song) return;
+    let isCurrentSong = true;
     setResolvedArt(song.artworkUrl || null);
+    setAppleMusicUrl(null);
+    setSimilarTracks([]);
+    setArtistTopTracks([]);
+    setIsRelatedTracksLoading(true);
 
     // Query iTunes API for high-res art and streaming link
     fetch(
@@ -64,12 +74,36 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
       })
       .catch(console.error);
 
-    // Sample similar tracks
-    setSimilarTracks([
-      { title: "Tell Your World", artist: "kz (livetune) feat. Hatsune Miku" },
-      { title: "Lavie", artist: "THREEE feat. Kagamine Len" },
-      { title: "Shun-kan Beat", artist: "Pastel*Palettes" },
-    ]);
+    Promise.allSettled([
+      fetchArtistTopTracks(song.artist, 5),
+      fetchSimilarTracks(song.artist, song.title, 6),
+    ])
+      .then(([artistTracksResult, similarTracksResult]) => {
+        if (!isCurrentSong) return;
+
+        if (artistTracksResult.status === "fulfilled") {
+          setArtistTopTracks(
+            artistTracksResult.value
+              .filter((track) => track.title.localeCompare(song.title, undefined, { sensitivity: "accent" }) !== 0)
+              .slice(0, 4),
+          );
+        } else {
+          console.warn("Could not fetch artist tracks:", artistTracksResult.reason);
+        }
+
+        if (similarTracksResult.status === "fulfilled") {
+          setSimilarTracks(similarTracksResult.value);
+        } else {
+          console.warn("Could not fetch similar tracks:", similarTracksResult.reason);
+        }
+      })
+      .finally(() => {
+        if (isCurrentSong) setIsRelatedTracksLoading(false);
+      });
+
+    return () => {
+      isCurrentSong = false;
+    };
   }, [song]);
 
   const handleLaunchUrl = async (url: string) => {
@@ -103,6 +137,7 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onDismiss}
+            aria-hidden="true"
             style={{
               position: "fixed",
               top: 0,
@@ -140,6 +175,9 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               margin: "0 auto",
               boxShadow: "0 -16px 40px rgba(0, 0, 0, 0.8)",
             }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="song-detail-title"
           >
             {/* Sheet Handle & Close */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -154,6 +192,8 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               />
               <button
                 onClick={onDismiss}
+                type="button"
+                aria-label="Close song details"
                 style={{
                   position: "absolute",
                   right: "24px",
@@ -198,12 +238,28 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               </div>
 
               <div style={{ flex: 1, overflow: "hidden" }}>
-                <div style={{ fontSize: "22px", fontWeight: 900, color: "#fafcff" }}>
+                <div id="song-detail-title" style={{ fontSize: "22px", fontWeight: 900, color: "#fafcff" }}>
                   {song.title}
                 </div>
-                <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--maru-accent-pink)", marginTop: "4px" }}>
+                <button
+                  type="button"
+                  onClick={() => onOpenArtist?.(song.artist)}
+                  disabled={!onOpenArtist}
+                  style={{
+                    padding: 0,
+                    background: "none",
+                    border: "none",
+                    color: "var(--maru-accent-pink)",
+                    font: "inherit",
+                    fontSize: "16px",
+                    fontWeight: 700,
+                    marginTop: "4px",
+                    cursor: onOpenArtist ? "pointer" : "default",
+                    textAlign: "left",
+                  }}
+                >
                   {song.artist}
-                </div>
+                </button>
                 {song.album && (
                   <div style={{ fontSize: "13px", color: "rgba(255, 255, 255, 0.5)", marginTop: "3px" }}>
                     {song.album}
@@ -215,6 +271,7 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.97 }}
                   onClick={() => primaryPlatform.url && handleLaunchUrl(primaryPlatform.url)}
+                  type="button"
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -251,6 +308,7 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
                     whileHover={{ scale: 1.03, y: -1 }}
                     whileTap={{ scale: 0.97 }}
                     onClick={() => p.url && handleLaunchUrl(p.url)}
+                    type="button"
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -273,39 +331,77 @@ export const SongDetailModal: React.FC<SongDetailModalProps> = ({
               </div>
             </div>
 
-            {/* Similar Tracks Row */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
-              <div style={{ fontSize: "13.5px", fontWeight: 800, color: "var(--maru-accent-blue)" }}>
-                Similar Tracks
+            {isRelatedTracksLoading ? (
+              <div style={{ height: "60px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <LoaderCircle size={22} color="var(--maru-accent-blue)" aria-label="Loading related tracks" style={{ animation: "maudio-spin 0.8s linear infinite" }} />
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {similarTracks.map((t, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => {
-                      if (onSelectSong) onSelectSong(t.title, t.artist);
-                    }}
-                    className="glass-card-subtle"
-                    style={{
-                      padding: "10px 14px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: 700, color: "#fafcff" }}>{t.title}</div>
-                      <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)", marginTop: "1px" }}>{t.artist}</div>
+            ) : (
+              <>
+                {artistTopTracks.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
+                    <div style={{ fontSize: "13.5px", fontWeight: 800, color: "var(--maru-accent-pink)" }}>
+                      More by {song.artist}
                     </div>
-                    <Play size={14} color="var(--maru-accent-pink)" />
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {artistTopTracks.map((track) => (
+                        <RelatedTrackButton key={`${track.artist}-${track.title}`} track={track} accentColor="var(--maru-accent-pink)" onSelectSong={onSelectSong} />
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+                {similarTracks.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "4px" }}>
+                <div style={{ fontSize: "13.5px", fontWeight: 800, color: "var(--maru-accent-blue)" }}>
+                  Similar to &quot;{song.title}&quot;
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {similarTracks.map((track) => (
+                    <RelatedTrackButton key={`${track.artist}-${track.title}`} track={track} accentColor="var(--maru-accent-blue)" onSelectSong={onSelectSong} />
+                  ))}
+                </div>
               </div>
-            </div>
+                )}
+              </>
+            )}
           </motion.div>
         </>
       )}
     </AnimatePresence>
   );
 };
+
+function RelatedTrackButton({
+  track,
+  accentColor,
+  onSelectSong,
+}: {
+  track: { title: string; artist: string };
+  accentColor: string;
+  onSelectSong?: (title: string, artist: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`Open ${track.title} by ${track.artist}`}
+      onClick={() => onSelectSong?.(track.title, track.artist)}
+      className="glass-card-subtle"
+      style={{
+        padding: "10px 14px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        cursor: "pointer",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        color: "inherit",
+        font: "inherit",
+        textAlign: "left",
+      }}
+    >
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: "13px", fontWeight: 700, color: "#fafcff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.title}</div>
+        <div style={{ fontSize: "11.5px", color: "rgba(255, 255, 255, 0.5)", marginTop: "1px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{track.artist}</div>
+      </div>
+      <Play size={14} color={accentColor} style={{ flexShrink: 0 }} />
+    </button>
+  );
+}

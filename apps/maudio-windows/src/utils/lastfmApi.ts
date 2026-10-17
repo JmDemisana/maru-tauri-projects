@@ -66,6 +66,70 @@ export async function fetchRecentTracks(username: string, limit = 20): Promise<L
   });
 }
 
+export interface SimilarLastfmTrack {
+  title: string;
+  artist: string;
+}
+
+export async function fetchSimilarTracks(
+  artist: string,
+  title: string,
+  limit = 6,
+): Promise<SimilarLastfmTrack[]> {
+  const cleanArtist = artist.trim();
+  const cleanTitle = title.trim();
+  if (!cleanArtist || !cleanTitle) return [];
+
+  const url = `${BASE_URL}?method=track.getsimilar&artist=${encodeURIComponent(cleanArtist)}&track=${encodeURIComponent(cleanTitle)}&limit=${limit}&api_key=${LASTFM_API_KEY}&format=json`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch similar tracks: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const tracks = Array.isArray(data.similartracks?.track) ? data.similartracks.track : [];
+  return tracks
+    .map((track: any) => ({
+      title: typeof track?.name === "string" ? track.name.trim() : "",
+      artist: typeof track?.artist === "string"
+        ? track.artist.trim()
+        : (track?.artist?.name || "").trim(),
+    }))
+    .filter((track: SimilarLastfmTrack) => track.title && track.artist)
+    .filter((track: SimilarLastfmTrack) => track.title.localeCompare(cleanTitle, undefined, { sensitivity: "accent" }) !== 0)
+    .filter((track: SimilarLastfmTrack, index: number, list: SimilarLastfmTrack[]) =>
+      list.findIndex((candidate) =>
+        candidate.title.localeCompare(track.title, undefined, { sensitivity: "accent" }) === 0 &&
+        candidate.artist.localeCompare(track.artist, undefined, { sensitivity: "accent" }) === 0,
+      ) === index,
+    )
+    .slice(0, limit);
+}
+
+export async function fetchArtistTopTracks(
+  artist: string,
+  limit = 5,
+): Promise<SimilarLastfmTrack[]> {
+  const cleanArtist = artist.trim();
+  if (!cleanArtist) return [];
+
+  const url = `${BASE_URL}?method=artist.gettoptracks&artist=${encodeURIComponent(cleanArtist)}&limit=${limit}&api_key=${LASTFM_API_KEY}&format=json`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch artist tracks: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const tracks = Array.isArray(data.toptracks?.track) ? data.toptracks.track : [];
+  return tracks
+    .map((track: any) => ({
+      title: typeof track?.name === "string" ? track.name.trim() : "",
+      artist: cleanArtist,
+    }))
+    .filter((track: SimilarLastfmTrack) => track.title)
+    .slice(0, limit);
+}
+
 export async function fetchTopArtists(username: string, period: TimePeriod): Promise<{ name: string; playcount: number; image: string }[]> {
   const user = username.trim() || "JmDemisana";
   const periodMap: Record<TimePeriod, string> = {

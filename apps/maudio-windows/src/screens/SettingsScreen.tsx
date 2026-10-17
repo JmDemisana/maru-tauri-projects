@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { PlayCircle, User, Sliders, RefreshCw, Check, Monitor, Power } from "lucide-react";
+import { PlayCircle, User, RefreshCw, Check, Monitor, Download } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 interface SettingsScreenProps {
   username: string;
@@ -22,6 +24,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
 
   const [userInput, setUserInput] = useState(username || "");
   const [savedUserMsg, setSavedUserMsg] = useState(false);
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [updateState, setUpdateState] = useState<"idle" | "checking" | "available" | "installing" | "current" | "error">("idle");
+  const [updateMessage, setUpdateMessage] = useState("");
 
   const platforms = ["Apple Music", "Spotify", "YouTube Music", "Tidal"];
 
@@ -65,6 +70,41 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
     setTimeout(() => setSavedUserMsg(false), 2000);
   };
 
+  const handleCheckForUpdates = async () => {
+    setUpdateState("checking");
+    setUpdateMessage("");
+    try {
+      const available = await check({ timeout: 15_000 });
+      if (!available) {
+        setUpdate(null);
+        setUpdateState("current");
+        setUpdateMessage("MAudio is up to date.");
+        return;
+      }
+      setUpdate(available);
+      setUpdateState("available");
+      setUpdateMessage(`Version ${available.version} is ready.`);
+    } catch (error) {
+      console.warn("Could not check for MAudio updates:", error);
+      setUpdateState("error");
+      setUpdateMessage("Could not check for MAudio updates. Try again when you are online.");
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    if (!update) return;
+    setUpdateState("installing");
+    setUpdateMessage(`Downloading version ${update.version}...`);
+    try {
+      await update.downloadAndInstall();
+      await relaunch();
+    } catch (error) {
+      console.warn("Could not install MAudio update:", error);
+      setUpdateState("error");
+      setUpdateMessage("The update could not be installed. Please try again.");
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -106,6 +146,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
             type="checkbox"
             checked={autoStart}
             onChange={(e) => handleToggleAutoStart(e.target.checked)}
+            aria-label="Start MAudio with Windows"
             style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
           />
         </div>
@@ -126,9 +167,52 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
             type="checkbox"
             checked={minimizeToTray}
             onChange={(e) => handleToggleMinimizeToTray(e.target.checked)}
+            aria-label="Minimize MAudio to the system tray on close"
             style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
           />
         </div>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", paddingLeft: "4px", marginTop: "4px" }}>
+        <Download size={15} color="var(--maru-accent-pink)" />
+        <span style={{ fontSize: "10px", fontWeight: 800, color: "var(--maru-accent-pink)", letterSpacing: "0.8px" }}>
+          APP UPDATES
+        </span>
+      </div>
+
+      <div className="glass-card" style={{ padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+        <div aria-live="polite">
+          <div style={{ fontSize: "13.5px", fontWeight: 700, color: "#f4f4f9fa" }}>
+            {updateState === "available" ? `MAudio ${update?.version} is ready` : "Keep MAudio up to date"}
+          </div>
+          <div style={{ fontSize: "11.5px", color: "rgba(235, 235, 245, 0.72)", marginTop: "2px" }}>
+            {updateMessage || "Checks only the MAudio Desktop release channel."}
+          </div>
+        </div>
+        {updateState === "available" ? (
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleInstallUpdate}
+            style={updateButtonStyle}
+          >
+            <Download size={15} />
+            Install
+          </motion.button>
+        ) : (
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleCheckForUpdates}
+            disabled={updateState === "checking" || updateState === "installing"}
+            style={{ ...updateButtonStyle, opacity: updateState === "checking" || updateState === "installing" ? 0.65 : 1 }}
+          >
+            <RefreshCw size={15} style={{ animation: updateState === "checking" ? "maudio-spin 0.8s linear infinite" : undefined }} />
+            {updateState === "checking" ? "Checking" : updateState === "installing" ? "Installing" : "Check for updates"}
+          </motion.button>
+        )}
       </div>
 
       {/* 2. PLAYER & LAUNCH BEHAVIOR */}
@@ -153,6 +237,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleSelectPlatform(p)}
+                type="button"
+                aria-pressed={isSelected}
                 style={{
                   height: "44px",
                   borderRadius: "14px",
@@ -188,6 +274,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
             type="checkbox"
             checked={directSongLaunch}
             onChange={(e) => handleToggleDirectLaunch(e.target.checked)}
+            aria-label="Open songs in the preferred streaming service immediately"
             style={{ width: "18px", height: "18px", accentColor: "var(--maru-accent-pink)", cursor: "pointer" }}
           />
         </div>
@@ -211,6 +298,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
             type="text"
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
+            aria-label="Last.fm username"
             placeholder="Username (e.g. your Last.fm username)"
             style={{
               flex: 1,
@@ -227,6 +315,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleSaveUsername}
+            type="button"
             style={{
               padding: "0 20px",
               borderRadius: "10px",
@@ -248,4 +337,21 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({ username, onSave
       </div>
     </motion.div>
   );
+};
+
+const updateButtonStyle: React.CSSProperties = {
+  minWidth: "132px",
+  minHeight: "38px",
+  padding: "0 14px",
+  borderRadius: "8px",
+  background: "var(--maru-accent-pink)",
+  border: "none",
+  color: "#ffffff",
+  fontWeight: 800,
+  fontSize: "12px",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "7px",
 };

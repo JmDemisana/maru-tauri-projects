@@ -11,7 +11,9 @@ interface DiscoveryScreenProps {
 }
 
 export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSongClick }) => {
-  const [isGridView, setIsGridView] = useState(false);
+  const [isGridView, setIsGridView] = useState(
+    () => localStorage.getItem("maudio_discovery_view") === "grid",
+  );
   const [recommendations, setRecommendations] = useState<RecommendedTrackItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -54,7 +56,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
   const handleTrackClick = async (item: RecommendedTrackItem) => {
     const directLaunch = localStorage.getItem("maudio_direct_launch") === "true";
     if (directLaunch) {
-      const preferred = localStorage.getItem("maudio_preferred_platform") || "Spotify";
+      const preferred = localStorage.getItem("maudio_preferred_platform") || "Apple Music";
       const q = encodeURIComponent(`${item.artist} ${item.title}`.trim());
       let url = `https://open.spotify.com/search/${q}`;
       if (preferred.toLowerCase().includes("apple")) {
@@ -136,6 +138,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={fetchFeed}
+            type="button"
+            aria-label="Refresh discovery recommendations"
             disabled={isLoading}
             style={{
               display: "flex",
@@ -158,7 +162,16 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setIsGridView(!isGridView)}
+            onClick={() => {
+              setIsGridView((current) => {
+                const next = !current;
+                localStorage.setItem("maudio_discovery_view", next ? "grid" : "list");
+                return next;
+              });
+            }}
+            type="button"
+            aria-label={`Switch to ${isGridView ? "list" : "grid"} view`}
+            aria-pressed={isGridView}
             style={{
               display: "flex",
               alignItems: "center",
@@ -238,7 +251,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           }}
         >
           {recommendations.map((item, idx) => (
-            <motion.div
+            <motion.button
+              type="button"
               key={`${item.artist}-${item.title}-${idx}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -246,6 +260,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               whileHover={{ scale: 1.008, x: 2 }}
               whileTap={{ scale: 0.99 }}
               onClick={() => handleTrackClick(item)}
+              aria-label={`Open ${item.title} by ${item.artist}`}
               className="glass-card"
               style={{
                 padding: "10px 14px",
@@ -256,6 +271,10 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
                 border: "1px solid rgba(255, 255, 255, 0.08)",
                 position: "relative",
                 overflow: "hidden",
+                width: "100%",
+                textAlign: "left",
+                color: "inherit",
+                font: "inherit",
               }}
             >
               {/* Artwork Box */}
@@ -332,7 +351,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               </div>
 
               <ChevronRight size={18} color="rgba(235, 235, 245, 0.4)" />
-            </motion.div>
+            </motion.button>
           ))}
         </motion.div>
       )}
@@ -348,7 +367,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
           }}
         >
           {recommendations.map((item, idx) => (
-            <motion.div
+            <motion.button
+              type="button"
               key={`${item.artist}-${item.title}-${idx}`}
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -356,6 +376,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               whileHover={{ scale: 1.02, y: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleTrackClick(item)}
+              aria-label={`Open ${item.title} by ${item.artist}`}
               className="glass-card"
               style={{
                 borderRadius: "14px",
@@ -364,6 +385,10 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
                 border: "1px solid rgba(255, 255, 255, 0.08)",
                 display: "flex",
                 flexDirection: "column",
+                width: "100%",
+                textAlign: "left",
+                color: "inherit",
+                font: "inherit",
               }}
             >
               <div style={{ position: "relative", width: "100%", aspectRatio: "1/1", background: "rgba(255,255,255,0.08)" }}>
@@ -415,7 +440,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
                   {item.artist}
                 </div>
               </div>
-            </motion.div>
+            </motion.button>
           ))}
         </motion.div>
       )}
@@ -446,6 +471,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ username, onSo
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={loadMore}
+              type="button"
               style={{
                 display: "flex",
                 alignItems: "center",

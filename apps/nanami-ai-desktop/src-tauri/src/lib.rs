@@ -1,5 +1,21 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+#[cfg(target_os = "windows")]
+fn hide_command_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    command.creation_flags(CREATE_NO_WINDOW)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_command_window(command: &mut std::process::Command) -> &mut std::process::Command {
+    command
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FileOpResult {
@@ -174,9 +190,10 @@ fn find_shell() -> Result<&'static str, String> {
 
 fn command_exists(bin: &str) -> bool {
     let probe = if cfg!(target_os = "windows") {
-        std::process::Command::new("where")
-            .arg(bin)
-            .output()
+        let mut cmd = std::process::Command::new("where");
+        cmd.arg(bin);
+        hide_command_window(&mut cmd);
+        cmd.output()
     } else {
         std::process::Command::new("sh")
             .args(["-c", &format!("command -v {bin}")])
@@ -224,7 +241,8 @@ async fn nami_run_command(command: String, cwd: Option<String>) -> CommandResult
     let run = tokio::task::spawn_blocking(move || {
         // `powershell` and `pwsh` share the same CLI flags.
         let mut cmd = std::process::Command::new(shell);
-        cmd.args(["-NoProfile", "-Command", &trimmed]);
+        cmd.args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", &trimmed]);
+        hide_command_window(&mut cmd);
         if let Some(dir) = cwd_clone {
             if !dir.trim().is_empty() {
                 cmd.current_dir(dir);

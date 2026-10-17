@@ -3,7 +3,7 @@ import { TitleBar } from "@maru/ui";
 import { NavigationScreen, LastfmProfile, MediaState, SongDetailState, RecommendedTrackItem, LastfmAuth } from "./types";
 import { DesktopSidebar } from "./components/DesktopSidebar";
 import { NotificationMirrorBottomBar } from "./components/NotificationMirrorBottomBar";
-import { SongDetailModal } from "./components/SongDetailModal";
+import { SongDetailModal, getStreamingUrls } from "./components/SongDetailModal";
 import { DiscoveryScreen } from "./screens/DiscoveryScreen";
 import { SearchScreen } from "./screens/SearchScreen";
 import { ProfileScreen } from "./screens/ProfileScreen";
@@ -19,6 +19,7 @@ import { clearLastfmAuth, getLocalLastfmAuth, loadLastfmAuth, normalizeLastfmAut
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { Heart, Sparkles } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
 
@@ -32,6 +33,25 @@ export function App() {
   const sessionKey = lastfmAuth.sessionKey;
   const [profile, setProfile] = useState<LastfmProfile | null>(null);
   const [selectedSongDetail, setSelectedSongDetail] = useState<SongDetailState | null>(null);
+
+  const showSong = (song: SongDetailState) => {
+    if (localStorage.getItem("maudio_direct_launch") !== "true") {
+      setSelectedSongDetail(song);
+      return;
+    }
+
+    const platform = (localStorage.getItem("maudio_preferred_platform") || "Apple Music").toLowerCase();
+    const urls = getStreamingUrls(song.title, song.artist, song.appleMusicUrl);
+    const targetUrl = platform === "apple music"
+      ? urls.appleMusic
+      : platform === "youtube music"
+        ? urls.youtubeMusic
+        : platform === "tidal"
+          ? urls.tidal
+          : urls.spotify;
+
+    openUrl(targetUrl).catch(() => window.open(targetUrl, "_blank"));
+  };
 
   const applyLastfmAuth = (auth: LastfmAuth) => {
     const next = normalizeLastfmAuth(auth);
@@ -349,7 +369,7 @@ export function App() {
                   key="discovery"
                   username={username}
                   onSongClick={(item: RecommendedTrackItem) =>
-                    setSelectedSongDetail({
+                    showSong({
                       title: item.title,
                       artist: item.artist,
                       album: item.album,
@@ -362,7 +382,7 @@ export function App() {
               {selectedScreen === NavigationScreen.SEARCH && (
                 <SearchScreen
                   key="search"
-                  onSongClick={(song) => setSelectedSongDetail(song)}
+                  onSongClick={showSong}
                   onOpenProfile={(u) => {
                     updateUsername(u);
                     setSelectedScreen(NavigationScreen.PROFILE);
@@ -380,7 +400,7 @@ export function App() {
                   key="profile"
                   username={username}
                   onBack={() => setSelectedScreen(NavigationScreen.DISCOVERY)}
-                  onSongClick={(s) => setSelectedSongDetail(s)}
+                  onSongClick={showSong}
                   onNavigateScrobbler={() => setSelectedScreen(NavigationScreen.SCROBBLING)}
                 />
               )}
@@ -389,7 +409,7 @@ export function App() {
                 <KaraokeScreen
                   key="karaoke"
                   mediaState={mediaState}
-                  onSongClick={(s) => setSelectedSongDetail(s)}
+                  onSongClick={showSong}
                   onNavigateMarucast={() => setSelectedScreen(NavigationScreen.MARUCAST)}
                 />
               )}
@@ -403,7 +423,7 @@ export function App() {
                   key="artist"
                   artistName={selectedArtistDetail}
                   onBack={() => setSelectedScreen(previousScreen)}
-                  onSelectSong={(s) => setSelectedSongDetail(s)}
+                  onSelectSong={showSong}
                   onSelectArtist={(art) => setSelectedArtistDetail(art)}
                 />
               )}
@@ -441,7 +461,7 @@ export function App() {
             mediaState={mediaState}
             onClick={() => {
               if (mediaState.title) {
-                setSelectedSongDetail({
+                showSong({
                   title: mediaState.title,
                   artist: mediaState.artist || "",
                   album: mediaState.album || undefined,
@@ -457,7 +477,13 @@ export function App() {
       <SongDetailModal
         song={selectedSongDetail}
         onDismiss={() => setSelectedSongDetail(null)}
-        onSelectSong={(t, a) => setSelectedSongDetail({ title: t, artist: a })}
+        onSelectSong={(title, artist) => showSong({ title, artist })}
+        onOpenArtist={(artist) => {
+          setSelectedSongDetail(null);
+          setPreviousScreen(selectedScreen);
+          setSelectedArtistDetail(artist);
+          setSelectedScreen(NavigationScreen.ARTIST_DETAIL);
+        }}
       />
     </div>
   );

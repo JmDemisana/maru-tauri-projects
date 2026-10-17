@@ -21,6 +21,12 @@
   -webkit-user-select: none;
 }
 
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--maru-accent-blue);
+  outline-offset: 2px;
+}
+
 body, html {
   width: 100%;
   height: 100%;
@@ -83,4 +89,7 @@ body, html {
 @keyframes eqBounce {
   0%, 100% { height: 6px; }
   50% { height: 26px; }
+}
+@keyframes maudio-spin {
+  to { transform: rotate(360deg); }
 }

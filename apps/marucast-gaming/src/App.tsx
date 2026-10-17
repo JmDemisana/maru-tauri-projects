@@ -71,10 +71,14 @@ export const App: React.FC = () => {
     }
   }, [activeDevice]);
 
-  // Initial load
+  // Live polling every 4 seconds to detect device connections/disconnections
   useEffect(() => {
     fetchDevices();
-  }, []);
+    const interval = setInterval(() => {
+      fetchDevices();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [fetchDevices]);
 
   useEffect(() => {
     if (activeDevice) {
@@ -100,12 +104,23 @@ export const App: React.FC = () => {
   // 4. Action Handlers
   const handleConnect = async (ipPort: string) => {
     await invoke("connect_device", { ipPort });
+    localStorage.setItem("marucast_last_ip_port", ipPort);
     await fetchDevices();
   };
 
   const handlePair = async (ipPort: string, code: string) => {
     await invoke("pair_device", { ipPort, code });
     await fetchDevices();
+  };
+
+  const handleAutoReconnect = async (): Promise<string> => {
+    const res = await invoke<string>("auto_reconnect_device");
+    await fetchDevices();
+    return res;
+  };
+
+  const handleDiscoverMdns = async (): Promise<string[]> => {
+    return await invoke<string[]>("discover_mdns");
   };
 
   const handleLaunchApp = async (app: AndroidApp) => {
@@ -255,6 +270,8 @@ export const App: React.FC = () => {
               onConnect={handleConnect}
               onPair={handlePair}
               onRefresh={fetchDevices}
+              onAutoReconnect={handleAutoReconnect}
+              onDiscoverMdns={handleDiscoverMdns}
               isLoading={isLoading}
             />
           )}

@@ -1,5 +1,9 @@
 pub mod adb;
+pub mod audio;
 pub mod session;
+pub mod stream_server;
+pub mod vdd;
+pub mod virtual_display;
 
 use adb::{AdbDevice, AndroidApp, RecentTask};
 use session::{AppSession, SessionManager};
@@ -145,6 +149,16 @@ async fn move_to_next_monitor(window: tauri::WebviewWindow) -> Result<(), String
     Ok(())
 }
 
+#[tauri::command]
+fn discover_mdns() -> Result<Vec<String>, String> {
+    Ok(adb::discover_mdns_services())
+}
+
+#[tauri::command]
+fn auto_reconnect_device() -> Result<String, String> {
+    adb::auto_reconnect()
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -157,6 +171,8 @@ pub fn run() {
             get_devices,
             connect_device,
             pair_device,
+            discover_mdns,
+            auto_reconnect_device,
             get_apps,
             get_recents,
             close_task,
@@ -167,6 +183,12 @@ pub fn run() {
             move_to_next_monitor
         ])
         .setup(|app| {
+            // Spawn bidirectional stream server inside interactive desktop process
+            stream_server::spawn_server_background();
+
+            // Spawn background keepalive worker to prevent wireless ADB timeout
+            adb::start_adb_keepalive_worker();
+
             if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
                 let _ = window.set_resizable(false);
                 let _ = window.set_maximizable(false);

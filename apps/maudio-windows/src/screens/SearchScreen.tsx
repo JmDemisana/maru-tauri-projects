@@ -296,7 +296,8 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
       {selectedScope === SearchScope.SONGS && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           {songResults.map((item) => (
-            <motion.div
+            <motion.button
+              type="button"
               key={item.trackId}
               whileHover={{ scale: 1.01, x: 2 }}
               whileTap={{ scale: 0.99 }}
@@ -309,6 +310,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                   appleMusicUrl: item.trackViewUrl,
                 })
               }
+              aria-label={`Open ${item.trackName} by ${item.artistName}`}
               className="glass-card"
               style={{
                 padding: "12px 14px",
@@ -316,6 +318,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                 alignItems: "center",
                 gap: "14px",
                 cursor: "pointer",
+                width: "100%",
+                textAlign: "left",
+                color: "inherit",
+                font: "inherit",
               }}
             >
               <img
@@ -332,19 +338,21 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
                 </div>
               </div>
               <ChevronRight size={18} color="var(--maru-accent-pink)" />
-            </motion.div>
+            </motion.button>
           ))}
         </div>
       )}
 
       {/* PROFILES Scope */}
       {selectedScope === SearchScope.PROFILES && profileResult && (
-        <motion.div
+        <motion.button
+          type="button"
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           whileHover={{ scale: 1.01, x: 2 }}
           whileTap={{ scale: 0.99 }}
           onClick={() => onOpenProfile(profileResult.username)}
+          aria-label={`Open Last.fm profile for ${profileResult.username}`}
           className="glass-card"
           style={{
             padding: "18px 20px",
@@ -353,6 +361,10 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
             gap: "16px",
             cursor: "pointer",
             border: "1px solid rgba(232, 93, 159, 0.5)",
+            width: "100%",
+            textAlign: "left",
+            color: "inherit",
+            font: "inherit",
           }}
         >
           <img
@@ -369,7 +381,7 @@ export const SearchScreen: React.FC<SearchScreenProps> = ({
             </div>
           </div>
           <ChevronRight size={18} color="var(--maru-accent-pink)" />
-        </motion.div>
+        </motion.button>
       )}
     </motion.div>
   );

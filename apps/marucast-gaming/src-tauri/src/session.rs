@@ -41,8 +41,13 @@ pub struct AppSession {
     pub is_running: bool,
 }
 
+pub struct SessionProcess {
+    pub child: Child,
+    pub device_serial: String,
+}
+
 pub struct SessionManager {
-    sessions: Arc<Mutex<HashMap<String, Child>>>,
+    sessions: Arc<Mutex<HashMap<String, SessionProcess>>>,
 }
 
 impl SessionManager {
@@ -103,6 +108,13 @@ impl SessionManager {
         )
         .output();
 
+        // Prevent Android CPU sleep and Wi-Fi power-save throttling while streaming on battery
+        let mut stayon_command = Command::new("adb");
+        let _ = hide_command_window(
+            stayon_command.args(&["-s", device, "shell", "svc", "power", "stayon", "true"]),
+        )
+        .output();
+
         let mut cmd = Command::new(scrcpy_path);
         hide_command_window(&mut cmd);
 
@@ -148,13 +160,18 @@ impl SessionManager {
         let child = cmd.spawn().map_err(|e| format!("Failed to spawn scrcpy session: {}", e))?;
 
         let mut lock = self.sessions.lock().map_err(|e| e.to_string())?;
-        lock.insert(session_id.clone(), child);
+        lock.insert(
+            session_id.clone(),
+            SessionProcess {
+                child,
+                device_serial: device.to_string(),
+            },
+        );
 
-        // Spawn background supervisor to listen for Alt+Q / Alt+F4 and monitor lifecycle
+        // Spawn background supervisor to listen for Alt+Q and monitor process lifecycle
         let sessions_clone = self.sessions.clone();
         let session_id_clone = session_id.clone();
         let device_clone = device.to_string();
-        let pkg_clone = package_name.to_string();
         let title_clone = window_title.clone();
 
         spawn(move || {
@@ -202,8 +219,8 @@ impl SessionManager {
                                 if alt_down && q_down {
                                     println!("[Supervisor] Alt+Q pressed. Closing fullscreen cast window.");
                                     if let Ok(mut lock) = sessions_clone.lock() {
-                                        if let Some(mut child) = lock.remove(&session_id_clone) {
-                                            let _ = child.kill();
+                                        if let Some(mut sp) = lock.remove(&session_id_clone) {
+                                            let _ = sp.child.kill();
                                         }
                                     }
                                     break;
@@ -213,55 +230,27 @@ impl SessionManager {
                     }
                 }
 
-                // 2. Periodic app focus check every ~1.5s
-                if loop_counter % 30 == 0 {
-                    let mut focus_command = Command::new("adb");
-                    let output = hide_command_window(focus_command.args(&[
-                        "-s",
-                        &device_clone,
-                        "shell",
-                        "dumpsys",
-                        "window",
-                        "windows",
-                    ]))
-                    .output();
-
-                    if let Ok(out) = output {
-                        let text = String::from_utf8_lossy(&out.stdout);
-                        
-                        // If scrcpy window closed by user
-                        if let Ok(mut lock) = sessions_clone.lock() {
-                            if let Some(child) = lock.get_mut(&session_id_clone) {
-                                if let Ok(Some(_)) = child.try_wait() {
-                                    lock.remove(&session_id_clone);
-                                    break;
-                                }
-                            } else {
+                // 2. Check if scrcpy process exited or window closed (every ~500ms)
+                if loop_counter % 10 == 0 {
+                    if let Ok(mut lock) = sessions_clone.lock() {
+                        if let Some(sp) = lock.get_mut(&session_id_clone) {
+                            if let Ok(Some(_)) = sp.child.try_wait() {
+                                lock.remove(&session_id_clone);
                                 break;
                             }
-                        }
-
-                        // Check if current focused window belongs to app
-                        let has_focus = text.lines().any(|l| {
-                            l.contains("mCurrentFocus") && l.contains(&pkg_clone)
-                        });
-
-                        let is_launcher_focused = text.lines().any(|l| {
-                            l.contains("mCurrentFocus") && (l.contains("launcher") || l.contains("SecDesktopLauncher"))
-                        });
-
-                        if is_launcher_focused && !has_focus {
-                            println!("[Supervisor] App {} exited. Closing session window.", pkg_clone);
-                            if let Ok(mut lock) = sessions_clone.lock() {
-                                if let Some(mut child) = lock.remove(&session_id_clone) {
-                                    let _ = child.kill();
-                                }
-                            }
+                        } else {
                             break;
                         }
                     }
                 }
             }
+
+            // Restore normal power management so device can sleep normally when not streaming
+            let mut reset_stayon = Command::new("adb");
+            let _ = hide_command_window(
+                reset_stayon.args(&["-s", &device_clone, "shell", "svc", "power", "stayon", "false"]),
+            )
+            .output();
         });
 
         Ok(AppSession {
@@ -277,8 +266,13 @@ impl SessionManager {
     /// Stops a running app session
     pub fn stop_session(&self, session_id: &str) -> Result<bool, String> {
         let mut lock = self.sessions.lock().map_err(|e| e.to_string())?;
-        if let Some(mut child) = lock.remove(session_id) {
-            child.kill().map_err(|e| format!("Failed to stop session: {}", e))?;
+        if let Some(mut sp) = lock.remove(session_id) {
+            let _ = sp.child.kill();
+            let mut reset_stayon = Command::new("adb");
+            let _ = hide_command_window(
+                reset_stayon.args(&["-s", &sp.device_serial, "shell", "svc", "power", "stayon", "false"]),
+            )
+            .output();
             Ok(true)
         } else {
             Ok(false)

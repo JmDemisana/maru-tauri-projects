@@ -1,5 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use std::sync::{LazyLock, Mutex};
+use std::time::Duration;
+
+static LAST_WIRELESS_ENDPOINT: LazyLock<Mutex<Option<String>>> =
+    LazyLock::new(|| Mutex::new(None));
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -251,6 +256,19 @@ pub fn get_connected_devices() -> Result<Vec<AdbDevice>, String> {
 
             let supports_multi_audio = sdk_version >= 33;
 
+            // Automatically establish reverse port tunnel so phone app can connect via localhost:48792
+            if state == "device" {
+                let _ = run_adb(&["-s", &serial, "reverse", "tcp:48792", "tcp:48792"]);
+            }
+
+            if is_wireless && state == "device" {
+                if let Ok(mut lock) = LAST_WIRELESS_ENDPOINT.lock() {
+                    if lock.is_none() {
+                        *lock = Some(serial.clone());
+                    }
+                }
+            }
+
             devices.push(AdbDevice {
                 serial,
                 model,
@@ -270,10 +288,107 @@ pub fn get_connected_devices() -> Result<Vec<AdbDevice>, String> {
 pub fn connect_wireless(ip_port: &str) -> Result<String, String> {
     let output = run_adb(&["connect", ip_port])?;
     if output.contains("connected to") || output.contains("already connected") {
+        if let Ok(mut lock) = LAST_WIRELESS_ENDPOINT.lock() {
+            *lock = Some(ip_port.to_string());
+        }
+        // Automatically establish reverse port tunnel
+        let _ = run_adb(&["-s", ip_port, "reverse", "tcp:48792", "tcp:48792"]);
         Ok(output.trim().to_string())
     } else {
         Err(output.trim().to_string())
     }
+}
+
+/// Discovers wireless ADB endpoints announced via mDNS on local network
+pub fn discover_mdns_services() -> Vec<String> {
+    let output = match run_adb(&["mdns", "services"]) {
+        Ok(out) => out,
+        Err(_) => return Vec::new(),
+    };
+
+    let mut endpoints = Vec::new();
+    for line in output.lines().skip(1) {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('*') || trimmed.starts_with("List of") {
+            continue;
+        }
+
+        let parts: Vec<&str> = trimmed.split_whitespace().collect();
+        for part in parts.iter().rev() {
+            if part.contains(':') {
+                let pieces: Vec<&str> = part.split(':').collect();
+                if pieces.len() == 2 && pieces[1].chars().all(|c| c.is_ascii_digit()) {
+                    let ep = part.to_string();
+                    if !endpoints.contains(&ep) {
+                        endpoints.push(ep);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    endpoints
+}
+
+/// Attempts automatic reconnection to the last known wireless endpoint or via mDNS discovery
+pub fn auto_reconnect() -> Result<String, String> {
+    // 1. Try last known wireless endpoint
+    let last_known = {
+        LAST_WIRELESS_ENDPOINT.lock().ok().and_then(|g| g.clone())
+    };
+
+    if let Some(endpoint) = last_known {
+        if let Ok(res) = connect_wireless(&endpoint) {
+            return Ok(res);
+        }
+    }
+
+    // 2. Discover via mDNS
+    let discovered = discover_mdns_services();
+    for ep in discovered {
+        if let Ok(res) = connect_wireless(&ep) {
+            return Ok(res);
+        }
+    }
+
+    Err("No wireless ADB devices found to auto-reconnect".to_string())
+}
+
+/// Spawns a background thread that periodically pings connected wireless devices to
+/// prevent Android from timing out the wireless ADB connection, and auto-reconnects
+/// if the connection is dropped.
+pub fn start_adb_keepalive_worker() {
+    std::thread::spawn(|| {
+        loop {
+            std::thread::sleep(Duration::from_secs(10));
+
+            // Query devices
+            if let Ok(devices) = get_connected_devices() {
+                let wireless_devices: Vec<_> = devices.into_iter().filter(|d| d.is_wireless).collect();
+
+                if wireless_devices.is_empty() {
+                    // No wireless devices currently connected; try auto-reconnect if we have a known endpoint
+                    let has_last = LAST_WIRELESS_ENDPOINT.lock().ok().and_then(|g| g.clone()).is_some();
+                    if has_last {
+                        let _ = auto_reconnect();
+                    }
+                } else {
+                    for dev in wireless_devices {
+                        if dev.state == "device" {
+                            // Send lightweight keepalive ping to prevent adbd idle timeout
+                            let _ = run_adb(&["-s", &dev.serial, "shell", "echo", "keepalive"]);
+                            // Re-verify reverse tunnel is healthy
+                            let _ = run_adb(&["-s", &dev.serial, "reverse", "tcp:48792", "tcp:48792"]);
+                        } else if dev.state == "offline" {
+                            // Device fell offline; disconnect and reconnect
+                            let _ = run_adb(&["disconnect", &dev.serial]);
+                            let _ = connect_wireless(&dev.serial);
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 /// Pairs a device with pairing code (IP:Port + 6-digit Code)

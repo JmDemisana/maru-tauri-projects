@@ -248,7 +248,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
 
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {recentTracks.map((track, idx) => (
-              <motion.div
+              <motion.button
+                type="button"
                 key={idx}
                 whileHover={{ scale: 1.008, x: 2 }}
                 whileTap={{ scale: 0.99 }}
@@ -260,6 +261,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
                     artworkUrl: track.image,
                   })
                 }
+                aria-label={`Open ${track.name} by ${track.artist}`}
                 className="glass-card"
                 style={{
                   padding: "10px 14px",
@@ -268,6 +270,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
                   gap: "12px",
                   cursor: "pointer",
                   border: track.nowPlaying ? "1px solid rgba(232, 93, 159, 0.6)" : "1px solid rgba(255, 255, 255, 0.08)",
+                  width: "100%",
+                  textAlign: "left",
+                  color: "inherit",
+                  font: "inherit",
                 }}
               >
                 <img
@@ -303,7 +309,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
                     {track.date}
                   </span>
                 )}
-              </motion.div>
+              </motion.button>
             ))}
           </div>
         </div>
@@ -360,7 +366,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
 
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 {topTracks.map((item, idx) => (
-                  <motion.div
+                  <motion.button
+                    type="button"
                     key={idx}
                     whileHover={{ scale: 1.008, x: 2 }}
                     whileTap={{ scale: 0.99 }}
@@ -370,6 +377,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
                         artist: item.artist?.name || "",
                       })
                     }
+                    aria-label={`Open ${item.name} by ${item.artist?.name || "unknown artist"}`}
                     className="glass-card"
                     style={{
                       padding: "10px 14px",
@@ -377,6 +385,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
                       alignItems: "center",
                       justifyContent: "space-between",
                       cursor: "pointer",
+                      width: "100%",
+                      textAlign: "left",
+                      color: "inherit",
+                      font: "inherit",
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", overflow: "hidden" }}>
@@ -410,7 +422,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ username, onBack, 
                     <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--maru-accent-pink)", flexShrink: 0 }}>
                       {parseInt(item.playcount || "0", 10).toLocaleString()} plays
                     </div>
-                  </motion.div>
+                  </motion.button>
                 ))}
               </div>
             </>

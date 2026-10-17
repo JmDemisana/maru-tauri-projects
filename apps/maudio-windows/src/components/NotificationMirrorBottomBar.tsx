@@ -34,12 +34,14 @@ export const NotificationMirrorBottomBar: React.FC<NotificationMirrorBottomBarPr
   return (
     <AnimatePresence>
       {isPlaying && (
-        <motion.div
+        <motion.button
+          type="button"
           initial={{ y: 80, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: "spring", damping: 22, stiffness: 260 }}
           onClick={onClick}
+          aria-label={`Open details for ${mediaState.title} by ${mediaState.artist || "unknown artist"}`}
           style={{
             position: "sticky",
             bottom: 0,
@@ -55,6 +57,9 @@ export const NotificationMirrorBottomBar: React.FC<NotificationMirrorBottomBarPr
             cursor: "pointer",
             zIndex: 50,
             boxShadow: "0 -8px 24px rgba(0, 0, 0, 0.6)",
+            width: "100%",
+            textAlign: "left",
+            color: "inherit",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "14px", overflow: "hidden" }}>
@@ -132,7 +137,7 @@ export const NotificationMirrorBottomBar: React.FC<NotificationMirrorBottomBarPr
             </span>
             <ChevronRight size={18} color="var(--maru-accent-pink)" />
           </div>
-        </motion.div>
+        </motion.button>
       )}
     </AnimatePresence>
   );
