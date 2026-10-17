@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Capability for the main window","local":true,"windows":["main"],"permissions":["core:default","core:window:default"]}}
+{"default":{"identifier":"default","description":"Capability for the main window","remote":{"urls":["https://nanami-ai.pages.dev","https://nanami-ai.pages.dev/*"]},"local":true,"windows":["main"],"permissions":["core:default","core:window:default","default-commands"]}}

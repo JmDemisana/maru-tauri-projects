@@ -1,0 +1,24 @@
+{
+  "default": null,
+  "permission": [
+    {
+      "identifier": "default-commands",
+      "description": "Allow custom Nanami AI agent commands",
+      "commands": {
+        "allow": [
+          "nami_get_cwd",
+          "nami_get_platform",
+          "nami_get_shell",
+          "nami_read_file",
+          "nami_write_file",
+          "nami_replace_in_file",
+          "nami_list_directory",
+          "nami_run_command",
+          "win_minimize",
+          "win_close"
+        ],
+        "deny": []
+      }
+    }
+  ]
+}
