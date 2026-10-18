@@ -10,6 +10,7 @@
     "dev:kontext": "pnpm --filter kontext tauri dev",
     "dev:start": "pnpm --filter maru-start tauri dev",
     "dev:characters": "pnpm --filter maru-characters tauri dev",
+    "dev:scanner": "pnpm --filter maru-scanner tauri dev",
     "build:nanami": "pnpm --filter nanami-ai-desktop tauri build",
     "build:files": "pnpm --filter files-companion tauri build",
     "build:monika": "pnpm --filter monika-piano tauri build",
@@ -18,6 +19,7 @@
     "build:kontext": "pnpm --filter kontext tauri build",
     "build:start": "pnpm --filter maru-start tauri build",
     "build:characters": "pnpm --filter maru-characters tauri build",
-    "build:characters:bundled": "pnpm --filter maru-characters bundle:builtins && pnpm --filter maru-characters tauri build"
+    "build:characters:bundled": "pnpm --filter maru-characters bundle:builtins && pnpm --filter maru-characters tauri build",
+    "build:scanner": "pnpm --filter maru-scanner tauri build"
   }
 }

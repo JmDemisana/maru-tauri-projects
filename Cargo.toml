@@ -11,6 +11,7 @@ members = [
     "apps/kontext/src-tauri",
     "apps/maru-start/src-tauri",
     "apps/maru-characters/src-tauri",
+    "apps/maru-scanner/src-tauri",
 ]
 
 [workspace.dependencies]

@@ -2876,6 +2876,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "maru-scanner"
+version = "1.0.0"
+dependencies = [
+ "maru-core",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-opener",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "maru-start"
 version = "1.0.0"
 dependencies = [
