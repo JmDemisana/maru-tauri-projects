@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { ScannedPage } from "../types";
+import { ScannedPage, PrecropType, ScannerSource } from "../types";
 
 interface ScanViewportProps {
   pages: ScannedPage[];
@@ -8,12 +8,18 @@ interface ScanViewportProps {
   onRotateCurrent: (degrees: number) => void;
   onApplyCrop: (pageId: string, rect: { x: number; y: number; width: number; height: number }) => void;
   onResetCrop: (pageId: string) => void;
+  onSwitchPrecrop?: (pageId: string, precrop: PrecropType) => void;
+  onStartScan?: () => void;
   onExportPdf: () => void;
   onExportArchive: () => void;
   onExportImages: () => void;
   onOpenFolder: () => void;
   onClearAll: () => void;
+  onAskNami: () => void;
+  onOpenScanFile: () => void;
   isProcessing: boolean;
+  scannerName?: string;
+  source?: ScannerSource;
 }
 
 export const ScanViewport: React.FC<ScanViewportProps> = ({
@@ -23,12 +29,18 @@ export const ScanViewport: React.FC<ScanViewportProps> = ({
   onRotateCurrent,
   onApplyCrop,
   onResetCrop,
+  onSwitchPrecrop,
+  onStartScan,
   onExportPdf,
   onExportArchive,
   onExportImages,
   onOpenFolder,
   onClearAll,
+  onAskNami,
+  onOpenScanFile,
   isProcessing,
+  scannerName,
+  source,
 }) => {
   const currentPage = pages[selectedIndex];
 
@@ -133,44 +145,37 @@ export const ScanViewport: React.FC<ScanViewportProps> = ({
   if (!currentPage || pages.length === 0) {
     return (
       <main className="scan-viewport empty">
-        <div className="empty-state-card">
-          <div className="empty-avatar-wrap">
-            <span className="empty-nami-emoji">💚</span>
-          </div>
-          <h2 className="empty-title">Ready for Your Scans!</h2>
-          <p className="empty-desc">
-            Place your document onto the flatbed glass or load the paper feeder tray.
-            Configure your resolution and crop on the left, then click{" "}
-            <strong>Scan Document</strong>!
-          </p>
+        <div className="empty-platen-card">
+          <div className="platen-glass-frame">
+            <div className="corner-reg tl" />
+            <div className="corner-reg tr" />
+            <div className="corner-reg bl" />
+            <div className="corner-reg br" />
+            <div className="platen-scanner-beam" />
 
-          <div className="empty-hints-grid">
-            <div className="hint-card">
-              <span className="hint-icon">🪟</span>
-              <div className="hint-text">
-                <strong>Flatbed Scanner</strong>
-                <span>Best for single pages, delicate books, and photo prints.</span>
+            <div className="platen-content">
+              <div className="platen-icon-wrap">
+                <span className="platen-icon">{source === "Feeder" ? "📑" : "🪟"}</span>
               </div>
-            </div>
-            <div className="hint-card">
-              <span className="hint-icon">📑</span>
-              <div className="hint-text">
-                <strong>Document Feeder (ADF)</strong>
-                <span>Supports long Folio sheets (8.5×13") and batch sheets.</span>
+              <h2 className="platen-title">Scanner Ready</h2>
+              <p className="platen-subtitle">
+                {scannerName || "WIA Scanner"} • Ready on{" "}
+                <strong>{source === "Feeder" ? "ADF Document Feeder" : "Flatbed Glass"}</strong>
+              </p>
+
+              <div className="platen-actions-row">
+                {onStartScan && (
+                  <button className="platen-action-btn primary" onClick={onStartScan}>
+                    ⚡ Scan Document
+                  </button>
+                )}
+                <button className="platen-action-btn secondary" onClick={onOpenScanFile}>
+                  📂 Open .scan Archive
+                </button>
               </div>
-            </div>
-            <div className="hint-card">
-              <span className="hint-icon">✨</span>
-              <div className="hint-text">
-                <strong>Background Whitening</strong>
-                <span>Cleans gray scanner paper noise and removes bleed-through.</span>
-              </div>
-            </div>
-            <div className="hint-card">
-              <span className="hint-icon">📦</span>
-              <div className="hint-text">
-                <strong>.scan Archive Format</strong>
-                <span>Zips full-res scans, OCR text, and manifest together.</span>
+
+              <div className="platen-drop-hint">
+                <span>or drag & drop a <code>.scan</code> archive here</span>
               </div>
             </div>
           </div>
@@ -229,6 +234,52 @@ export const ScanViewport: React.FC<ScanViewportProps> = ({
           </button>
         </div>
 
+        {/* Flatbed Precrop Recovery & Quick Switcher */}
+        {currentPage.source === "Flatbed" && (
+          <div className="toolbar-group flatbed-recovery-group">
+            {currentPage.cropRect ? (
+              <>
+                <button
+                  className="recover-flatbed-btn"
+                  onClick={() => onResetCrop(currentPage.id)}
+                  title="Recover the entire original flatbed scan glass"
+                >
+                  🔄 Recover Full Glass
+                </button>
+                {onSwitchPrecrop && (
+                  <select
+                    className="toolbar-precrop-select"
+                    value={currentPage.precrop}
+                    onChange={(e) => onSwitchPrecrop(currentPage.id, e.target.value as PrecropType)}
+                    title="Change precrop boundary from the raw flatbed glass"
+                  >
+                    <option value="Entire">Entire Flatbed</option>
+                    <option value="Letter">Letter (8.5×11")</option>
+                    <option value="A4">A4 (210×297mm)</option>
+                    <option value="Folio">Folio (8.5×13")</option>
+                    <option value="Legal">Legal (8.5×14")</option>
+                    <option value="HalfLetter">Half Letter (5.5×8.5")</option>
+                    <option value="4R">4R (4×6")</option>
+                  </select>
+                )}
+              </>
+            ) : (
+              <span className="flatbed-badge" title="Full glass preserved">
+                🪟 Full Glass
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Feeder ADF Indicator */}
+        {currentPage.source === "Feeder" && (
+          <div className="toolbar-group">
+            <span className="feeder-badge" title="Saved strictly to requested page size">
+              📑 Feeder ({currentPage.precrop})
+            </span>
+          </div>
+        )}
+
         {/* View Mode Toggle: Cleaned vs Raw */}
         {currentPage.processedUrl && (
           <div className="toolbar-group">
@@ -276,7 +327,7 @@ export const ScanViewport: React.FC<ScanViewportProps> = ({
           </button>
         </div>
 
-        {/* OCR Text Drawer Toggle */}
+        {/* OCR Text Drawer & Nami AI Assistant Toggle */}
         <div className="toolbar-group">
           <button
             className={`ocr-toggle-btn ${showOcrDrawer ? "active" : ""}`}
@@ -285,10 +336,26 @@ export const ScanViewport: React.FC<ScanViewportProps> = ({
           >
             📝 OCR Text
           </button>
+
+          <button
+            className="nami-assistant-btn"
+            onClick={onAskNami}
+            title="Ask Nami to solve, explain, or transcribe this scan"
+          >
+            ✨ Ask Nami
+          </button>
         </div>
 
         {/* Export & Batch Actions */}
         <div className="toolbar-group export-group">
+          <button
+            className="export-action-btn open-scan"
+            onClick={onOpenScanFile}
+            title="Open an existing .scan archive"
+          >
+            📂 Open .scan
+          </button>
+
           <button
             className="export-action-btn pdf"
             onClick={onExportPdf}
@@ -321,7 +388,7 @@ export const ScanViewport: React.FC<ScanViewportProps> = ({
             onClick={onOpenFolder}
             title="Open Scans folder in Explorer"
           >
-            📂
+            📁
           </button>
 
           <button

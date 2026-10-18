@@ -11,7 +11,7 @@ param(
     [ValidateSet("Color", "Gray", "Text")][string]$ColorMode = "Color",
     [int]$Dpi = 300,
     [ValidateSet("PNG", "JPEG", "BMP")][string]$Format = "PNG",
-    [ValidateSet("Entire", "Folio", "Letter", "A4", "HalfLetter", "Custom")][string]$Precrop = "Entire",
+    [ValidateSet("Entire", "Folio", "Legal", "Letter", "A4", "HalfLetter", "4R", "Custom")][string]$Precrop = "Entire",
     [double]$CustomWidthInches = 8.5,
     [double]$CustomHeightInches = 11.0,
     [string]$OutDir = "",
@@ -339,10 +339,20 @@ if ($Action -eq "scan") {
             $targetW = [Math]::Min($maxWidth, [int](8.5 * $Dpi))
             $targetH = [Math]::Min($maxHeight, [int](13.0 * $Dpi))
         }
+        "Legal" {
+            # 8.5 x 14 inches (Standard Legal)
+            $targetW = [Math]::Min($maxWidth, [int](8.5 * $Dpi))
+            $targetH = [Math]::Min($maxHeight, [int](14.0 * $Dpi))
+        }
         "HalfLetter" {
             # 5.5 x 8.5 inches (Statement)
             $targetW = [Math]::Min($maxWidth, [int](5.5 * $Dpi))
             $targetH = [Math]::Min($maxHeight, [int](8.5 * $Dpi))
+        }
+        "4R" {
+            # 4.0 x 6.0 inches (102 x 152 mm photo print)
+            $targetW = [Math]::Min($maxWidth, [int](4.0 * $Dpi))
+            $targetH = [Math]::Min($maxHeight, [int](6.0 * $Dpi))
         }
         "Custom" {
             $targetW = [Math]::Min($maxWidth, [int]($CustomWidthInches * $Dpi))
@@ -352,61 +362,188 @@ if ($Action -eq "scan") {
 
     Write-SetWiaProp $item 6149 0 | Out-Null # Horizontal Start
     Write-SetWiaProp $item 6150 0 | Out-Null # Vertical Start
-    Write-SetWiaProp $item 6151 $targetW | Out-Null
-    Write-SetWiaProp $item 6152 $targetH | Out-Null
+
+    $cropBox = $null
+    if ($Source -eq "Flatbed") {
+        # FLATBED SCAN: Always scan the ENTIRE flatbed glass so we can recover it if a wrong
+        # precrop was chosen later. The precrop is non-destructive and applied in-app.
+        Write-SetWiaProp $item 6151 $maxWidth | Out-Null
+        Write-SetWiaProp $item 6152 $maxHeight | Out-Null
+        if ($Precrop -ne "Entire") {
+            $cropBox = @{
+                x = 0
+                y = 0
+                width = [Math]::Min($maxWidth, $targetW)
+                height = [Math]::Min($maxHeight, $targetH)
+            }
+        }
+    } else {
+        # FEEDER (ADF) SCAN: What is saved at the feeder is strictly the page size,
+        # so it won't be confused with multiple document scanning.
+        Write-SetWiaProp $item 6151 $targetW | Out-Null
+        Write-SetWiaProp $item 6152 $targetH | Out-Null
+        $cropBox = $null
+    }
 
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $ext = @{ PNG = "png"; JPEG = "jpg"; BMP = "bmp" }[$Format]
-    $outFileName = "$FileNamePrefix-$stamp.$ext"
-    $outFilePath = Join-Path $OutDir $outFileName
 
-    $scannedImage = $null
-    if ($ShowDialog) {
-        $dlg = New-Object -ComObject WIA.CommonDialog
-        $scannedImage = $dlg.ShowTransfer($item, $FormatGuids[$Format], $false)
-    } else {
-        try {
-            $scannedImage = $item.Transfer($FormatGuids[$Format])
-        } catch {
-            $exMsg = $_.Exception.Message
-            if ($exMsg -match "0x80210003") {
-                $err = ConvertTo-Json @{ ok = $false; error = "Feeder is out of paper or jammed. Place paper in the feeder tray." } -Compress
-                Write-Output "RESULT:$err"
-                exit 6
+    $scannedPages = @()
+
+    if ($Source -eq "Feeder") {
+        # ADF BATCH SCANNING: Scan all pages loaded in the feeder tray automatically
+        # without requiring the user to click scan for every single sheet!
+        Write-SetWiaProp $device 3096 0 | Out-Null # 0 = All pages in ADF
+
+        $pageIndex = 1
+        $hasMore = $true
+
+        while ($hasMore) {
+            # Check if feeder is empty before attempting transfer
+            $status = Get-WiaPropValue $device.Properties "Document Handling Status" 3087
+            if ($null -ne $status -and ($status -band 8) -ne 0) {
+                if ($pageIndex -eq 1) {
+                    $err = ConvertTo-Json @{ ok = $false; error = "The document feeder is empty. Place your paper stack in the feeder tray!" } -Compress
+                    Write-Output "RESULT:$err"
+                    exit 4
+                }
+                break
             }
-            # Fallback to dialog if silent transfer was blocked
+
+            $pageImg = $null
+            if ($ShowDialog -and $pageIndex -eq 1) {
+                $dlg = New-Object -ComObject WIA.CommonDialog
+                $pageImg = $dlg.ShowTransfer($item, $FormatGuids[$Format], $false)
+            } else {
+                try {
+                    $pageImg = $item.Transfer($FormatGuids[$Format])
+                } catch {
+                    $exMsg = $_.Exception.Message
+                    # WIA_ERROR_PAPER_EMPTY: 0x80210003
+                    if ($exMsg -match "0x80210003" -or $exMsg -match "paper.*empty" -or $exMsg -match "out of paper") {
+                        if ($pageIndex -gt 1) {
+                            # Normal end of feeder batch
+                            break
+                        } else {
+                            $err = ConvertTo-Json @{ ok = $false; error = "The document feeder is empty. Place your paper into the feeder tray!" } -Compress
+                            Write-Output "RESULT:$err"
+                            exit 6
+                        }
+                    }
+                    if ($pageIndex -gt 1) {
+                        # Feeder reached end of stack
+                        break
+                    } else {
+                        throw $_
+                    }
+                }
+            }
+
+            if (-not $pageImg) { break }
+
+            $pNumStr = "{0:D2}" -f $pageIndex
+            $pageFileName = "$FileNamePrefix-$stamp-$pNumStr.$ext"
+            $pageFilePath = Join-Path $OutDir $pageFileName
+            $pageImg.SaveFile($pageFilePath)
+
+            $previewInfo = Create-ThumbnailAndPreview $pageFilePath 1600 85 "preview"
+            $thumbInfo = Create-ThumbnailAndPreview $pageFilePath 320 80 "thumb"
+
+            $scannedPages += @{
+                pageNumber = $pageIndex
+                filePath = $pageFilePath
+                fileName = $pageFileName
+                previewPath = $previewInfo.Path
+                thumbPath = $thumbInfo.Path
+                width = $pageImg.Width
+                height = $pageImg.Height
+                dpi = $Dpi
+                colorMode = $ColorMode
+                precrop = $Precrop
+                source = "Feeder"
+                cropRect = $null
+                fullFlatbedPreserved = $false
+            }
+
+            $pageIndex++
+
+            # Check if paper remains in feeder
+            $statusAfter = Get-WiaPropValue $device.Properties "Document Handling Status" 3087
+            if ($null -ne $statusAfter -and ($statusAfter -band 8) -ne 0) {
+                break
+            }
+        }
+    } else {
+        # FLATBED SCANNING: Single page scan with FULL glass retention
+        $outFileName = "$FileNamePrefix-$stamp.$ext"
+        $outFilePath = Join-Path $OutDir $outFileName
+
+        $scannedImage = $null
+        if ($ShowDialog) {
             $dlg = New-Object -ComObject WIA.CommonDialog
             $scannedImage = $dlg.ShowTransfer($item, $FormatGuids[$Format], $false)
+        } else {
+            try {
+                $scannedImage = $item.Transfer($FormatGuids[$Format])
+            } catch {
+                $dlg = New-Object -ComObject WIA.CommonDialog
+                $scannedImage = $dlg.ShowTransfer($item, $FormatGuids[$Format], $false)
+            }
+        }
+
+        if (-not $scannedImage) {
+            $err = ConvertTo-Json @{ ok = $false; error = "Scan did not produce an image. Document placed on glass?" } -Compress
+            Write-Output "RESULT:$err"
+            exit 7
+        }
+
+        $scannedImage.SaveFile($outFilePath)
+
+        $previewInfo = Create-ThumbnailAndPreview $outFilePath 1600 85 "preview"
+        $thumbInfo = Create-ThumbnailAndPreview $outFilePath 320 80 "thumb"
+
+        $scannedPages += @{
+            pageNumber = 1
+            filePath = $outFilePath
+            fileName = $outFileName
+            previewPath = $previewInfo.Path
+            thumbPath = $thumbInfo.Path
+            width = $scannedImage.Width
+            height = $scannedImage.Height
+            dpi = $Dpi
+            colorMode = $ColorMode
+            precrop = $Precrop
+            source = "Flatbed"
+            cropRect = $cropBox
+            fullFlatbedPreserved = ($Precrop -ne "Entire")
         }
     }
 
-    if (-not $scannedImage) {
-        $err = ConvertTo-Json @{ ok = $false; error = "Scan did not produce an image. Document placed on glass or feeder?" } -Compress
+    if ($scannedPages.Count -eq 0) {
+        $err = ConvertTo-Json @{ ok = $false; error = "No pages were scanned." } -Compress
         Write-Output "RESULT:$err"
-        exit 7
+        exit 8
     }
 
-    $scannedImage.SaveFile($outFilePath)
-
-    # Generate smooth UI preview (~1600px width) and thumbnail (~320px width)
-    $previewInfo = Create-ThumbnailAndPreview $outFilePath 1600 85 "preview"
-    $thumbInfo = Create-ThumbnailAndPreview $outFilePath 320 80 "thumb"
-
+    $first = $scannedPages[0]
     $res = @{
         ok = $true
-        filePath = $outFilePath
-        fileName = $outFileName
-        previewPath = $previewInfo.Path
-        thumbPath = $thumbInfo.Path
-        width = $scannedImage.Width
-        height = $scannedImage.Height
-        dpi = $Dpi
-        colorMode = $ColorMode
-        precrop = $Precrop
-        source = $Source
+        filePath = $first.filePath
+        fileName = $first.fileName
+        previewPath = $first.previewPath
+        thumbPath = $first.thumbPath
+        width = $first.width
+        height = $first.height
+        dpi = $first.dpi
+        colorMode = $first.colorMode
+        precrop = $first.precrop
+        source = $first.source
+        cropRect = $first.cropRect
+        fullFlatbedPreserved = $first.fullFlatbedPreserved
+        pages = $scannedPages
     }
 
-    $json = ConvertTo-Json -InputObject $res -Compress
+    $json = ConvertTo-Json -InputObject $res -Depth 4 -Compress
     Write-Output "RESULT:$json"
     exit 0
 }

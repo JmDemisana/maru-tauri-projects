@@ -1,6 +1,6 @@
 export type ScannerSource = "Flatbed" | "Feeder";
 
-export type PrecropType = "Entire" | "Folio" | "Letter" | "A4" | "HalfLetter" | "Custom";
+export type PrecropType = "Entire" | "Letter" | "A4" | "Folio" | "Legal" | "HalfLetter" | "4R" | "Custom";
 
 export type ColorMode = "Color" | "Gray" | "Text";
 
@@ -53,6 +53,7 @@ export interface ScannedPage {
   ocrText?: string;
   ocrRunning?: boolean;
   cropRect?: { x: number; y: number; width: number; height: number };
+  fullFlatbedPreserved?: boolean;
 }
 
 export interface ScanManifest {

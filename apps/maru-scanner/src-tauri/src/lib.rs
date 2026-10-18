@@ -46,6 +46,35 @@ pub struct ScanOptions {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CropRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedBatchItem {
+    pub page_number: Option<u32>,
+    pub file_path: String,
+    pub file_name: String,
+    pub preview_path: Option<String>,
+    pub thumb_path: Option<String>,
+    pub width: u32,
+    pub height: u32,
+    pub dpi: u32,
+    pub color_mode: String,
+    pub precrop: String,
+    pub source: String,
+    pub crop_rect: Option<CropRect>,
+    pub full_flatbed_preserved: Option<bool>,
+    pub preview_base64: Option<String>,
+    pub thumb_base64: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanPageResult {
     pub ok: bool,
     pub file_path: Option<String>,
@@ -58,8 +87,11 @@ pub struct ScanPageResult {
     pub color_mode: Option<String>,
     pub precrop: Option<String>,
     pub source: Option<String>,
+    pub crop_rect: Option<CropRect>,
+    pub full_flatbed_preserved: Option<bool>,
     pub preview_base64: Option<String>,
     pub thumb_base64: Option<String>,
+    pub pages: Option<Vec<ScannedBatchItem>>,
     pub error: Option<String>,
 }
 
@@ -87,12 +119,20 @@ pub struct ArchiveLoadResult {
 
 fn get_scripts_dir() -> PathBuf {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    // Try adjacent to binary first
+    // Try adjacent to binary first (installed app or debug target)
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            let candidate = exe_dir.join("scripts").join("scanner-backend.ps1");
-            if candidate.exists() {
+            let candidate1 = exe_dir.join("scripts").join("scanner-backend.ps1");
+            if candidate1.exists() {
                 return exe_dir.join("scripts");
+            }
+            let candidate2 = exe_dir.join("resources").join("scripts").join("scanner-backend.ps1");
+            if candidate2.exists() {
+                return exe_dir.join("resources").join("scripts");
+            }
+            let candidate3 = exe_dir.join("_up_").join("scripts").join("scanner-backend.ps1");
+            if candidate3.exists() {
+                return candidate3.parent().unwrap().to_path_buf();
             }
         }
     }
@@ -250,6 +290,16 @@ async fn start_scan(options: ScanOptions) -> Result<ScanPageResult, String> {
                     }
                     if let Some(thumb) = &res.thumb_path {
                         res.thumb_base64 = to_base64_data_uri(thumb, "image/jpeg");
+                    }
+                    if let Some(batch) = &mut res.pages {
+                        for page in batch.iter_mut() {
+                            if let Some(prev) = &page.preview_path {
+                                page.preview_base64 = to_base64_data_uri(prev, "image/jpeg");
+                            }
+                            if let Some(thumb) = &page.thumb_path {
+                                page.thumb_base64 = to_base64_data_uri(thumb, "image/jpeg");
+                            }
+                        }
                     }
                 }
                 return Ok(res);
@@ -461,6 +511,74 @@ async fn choose_directory() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+fn get_cli_open_file() -> Option<String> {
+    for arg in std::env::args().skip(1) {
+        let p = std::path::Path::new(&arg);
+        if p.exists() {
+            let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+            if ext == "scan" || ext == "zip" {
+                return Some(arg);
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+async fn choose_scan_file() -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(|| {
+        let mut cmd = std::process::Command::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-Command",
+            "Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.OpenFileDialog; $f.Filter = 'Maru Scan Files (*.scan)|*.scan|All Files (*.*)|*.*'; $f.Title = 'Open Maru Scan Archive'; if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output ('SCANFILE:' + $f.FileName) }",
+        ]);
+        hide_command_window(&mut cmd);
+        let output = cmd.output().map_err(|e| e.to_string())?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        for line in stdout.lines() {
+            if let Some(path) = line.strip_prefix("SCANFILE:") {
+                let trimmed = path.trim().to_string();
+                if !trimmed.is_empty() {
+                    return Ok(Some(trimmed));
+                }
+            }
+        }
+        Ok(None)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn register_scan_association() -> Result<bool, String> {
+    tokio::task::spawn_blocking(|| {
+        if let Ok(exe_path) = std::env::current_exe() {
+            let exe_str = exe_path.to_string_lossy().to_string();
+            let mut cmd = std::process::Command::new("powershell");
+            let script = format!(
+                r#"
+                $progId = 'Maru.Scanner.ScanFile'
+                $ext = '.scan'
+                $exe = '"{0}" "%1"'
+                New-Item -Path 'HKCU:\Software\Classes\.scan' -Value $progId -Force | Out-Null
+                New-Item -Path "HKCU:\Software\Classes\$progId\shell\open\command" -Value $exe -Force | Out-Null
+                New-ItemProperty -Path "HKCU:\Software\Classes\$progId" -Name 'FriendlyTypeName' -Value 'Maru Scanner Document Archive' -Force | Out-Null
+                "#,
+                exe_str.replace("'", "''")
+            );
+            cmd.args(["-NoProfile", "-Command", &script]);
+            hide_command_window(&mut cmd);
+            let _ = cmd.output();
+            return Ok(true);
+        }
+        Ok(false)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn open_folder(path: String) -> Result<(), String> {
     let p = Path::new(&path);
     let target = if p.is_file() {
@@ -538,6 +656,9 @@ pub fn run() {
             save_scan_archive,
             load_scan_archive,
             choose_directory,
+            choose_scan_file,
+            get_cli_open_file,
+            register_scan_association,
             open_folder,
             win_minimize,
             win_maximize,

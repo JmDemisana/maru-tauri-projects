@@ -44,6 +44,8 @@ interface SidebarProps {
   isScanning: boolean;
   scanProgressText: string;
   onStartScan: (append: boolean) => void;
+  onScanAndAskNami: () => void;
+  onOpenScanFile: () => void;
   hasScans: boolean;
   pageCount: number;
 }
@@ -75,15 +77,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isScanning,
   scanProgressText,
   onStartScan,
+  onScanAndAskNami,
+  onOpenScanFile,
   hasScans,
   pageCount,
 }) => {
   const currentDevice = devices.find((d) => d.id === selectedDeviceId) || devices[0];
 
+  const handleSourceChange = (newSource: ScannerSource) => {
+    onChangeSource(newSource);
+    // Entire flatbed is NOT available on feeder! Auto-switch to standard Letter
+    if (newSource === "Feeder" && precrop === "Entire") {
+      onChangePrecrop("Letter");
+    }
+  };
+
   const handlePrecropChange = (p: PrecropType) => {
-    if (p === "Folio" && source === "Flatbed") {
-      // Auto-switch to Feeder for Folio if device supports it, or notify
-      onChangeSource("Feeder");
+    if ((p === "Folio" || p === "Legal") && source === "Flatbed") {
+      // Prompt/switch to Feeder if device supports it since Folio & Legal extend past flatbed glass
+      if (currentDevice?.hasFeeder) {
+        onChangeSource("Feeder");
+      }
     }
     onChangePrecrop(p);
   };
@@ -131,15 +145,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="segmented-toggle">
           <button
             className={`toggle-option ${source === "Flatbed" ? "active" : ""}`}
-            onClick={() => onChangeSource("Flatbed")}
+            onClick={() => handleSourceChange("Flatbed")}
             disabled={isScanning}
           >
             <span>🪟 Flatbed</span>
           </button>
           <button
             className={`toggle-option ${source === "Feeder" ? "active" : ""}`}
-            onClick={() => onChangeSource("Feeder")}
-            disabled={isScanning}
+            onClick={() => handleSourceChange("Feeder")}
+            disabled={isScanning || (currentDevice && !currentDevice.hasFeeder)}
+            title={currentDevice && !currentDevice.hasFeeder ? "This scanner does not have an ADF feeder" : "Document Feeder"}
           >
             <span>📑 Feeder (ADF)</span>
           </button>
@@ -150,17 +165,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <section className="sidebar-section">
         <div className="section-header">
           <span className="section-title">PRECROP</span>
-          <span className="section-hint">Page Boundaries</span>
+          <span className="section-hint">
+            {source === "Flatbed" ? "Non-destructive" : "Saved page size"}
+          </span>
         </div>
 
         <div className="pill-grid">
-          <button
-            className={`choice-pill ${precrop === "Entire" ? "active" : ""}`}
-            onClick={() => handlePrecropChange("Entire")}
-            disabled={isScanning}
-          >
-            Entire Flatbed
-          </button>
+          {/* Entire Flatbed is ONLY available on Flatbed, NEVER on Feeder */}
+          {source === "Flatbed" && (
+            <button
+              className={`choice-pill ${precrop === "Entire" ? "active" : ""}`}
+              onClick={() => handlePrecropChange("Entire")}
+              disabled={isScanning}
+              title="Scan and display the entire flatbed glass"
+            >
+              Entire Flatbed
+            </button>
+          )}
 
           <button
             className={`choice-pill ${precrop === "Letter" ? "active" : ""}`}
@@ -182,10 +203,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={`choice-pill folio-pill ${precrop === "Folio" ? "active" : ""}`}
             onClick={() => handlePrecropChange("Folio")}
             disabled={isScanning}
-            title="Folio (8.5x13 inches) - Feeder only"
+            title="Folio (8.5×13 inches) - Long bond paper"
           >
             <span>Folio (8.5×13")</span>
-            <span className="pill-sub-tag">Feeder only</span>
+            {source === "Flatbed" && <span className="pill-sub-tag">Feeder rec.</span>}
+          </button>
+
+          <button
+            className={`choice-pill folio-pill ${precrop === "Legal" ? "active" : ""}`}
+            onClick={() => handlePrecropChange("Legal")}
+            disabled={isScanning}
+            title="Legal (8.5×14 inches) - US Legal"
+          >
+            <span>Legal (8.5×14")</span>
+            {source === "Flatbed" && <span className="pill-sub-tag">Feeder rec.</span>}
           </button>
 
           <button
@@ -194,6 +225,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
             disabled={isScanning}
           >
             Half Letter (5.5×8.5")
+          </button>
+
+          <button
+            className={`choice-pill ${precrop === "4R" ? "active" : ""}`}
+            onClick={() => handlePrecropChange("4R")}
+            disabled={isScanning}
+            title="4R Photo Print (4×6 inches)"
+          >
+            4R (4×6" Photo)
           </button>
 
           <button
@@ -236,9 +276,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {precrop === "Folio" && source === "Flatbed" && (
-          <div className="warning-callout">
-            ⚠️ 8.5×13" Folio extends past flatbed glass. Feeder is recommended.
+        {source === "Flatbed" && (
+          <div className="precrop-note-badge">
+            <span className="note-icon">✨</span>
+            <span>Entire glass is saved to disk. Precrop can be restored or re-adjusted later!</span>
+          </div>
+        )}
+
+        {source === "Feeder" && (
+          <div className="precrop-note-badge feeder-note">
+            <span className="note-icon">📑</span>
+            <span>Feeder saves exact page size so multi-page batches stay clean.</span>
           </div>
         )}
       </section>
@@ -476,6 +524,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>Scan Document</span>
             </button>
 
+            <button
+              className="nami-scan-btn"
+              onClick={onScanAndAskNami}
+              disabled={isScanning || devices.length === 0}
+              title="Scan and immediately ask Nami for answers or worksheet help"
+            >
+              <span className="btn-icon">✨</span>
+              <span>Scan & Ask Nami</span>
+            </button>
+
             {hasScans && (
               <button
                 className="secondary-scan-btn"
@@ -487,6 +545,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="page-badge-counter">#{pageCount + 1}</span>
               </button>
             )}
+
+            <button
+              className="open-archive-sidebar-btn"
+              onClick={onOpenScanFile}
+              disabled={isScanning}
+              title="Open and load an existing .scan archive"
+            >
+              <span>📂 Open .scan Archive</span>
+            </button>
           </div>
         )}
       </div>

@@ -142,3 +142,61 @@ export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const res = await fetch(dataUrl);
   return await res.blob();
 }
+
+/**
+ * Calculate pixel crop rectangle for standard precrop presets given DPI and image bounds
+ */
+export function getPrecropRectPx(
+  precrop: string,
+  dpi: number,
+  maxWidth: number,
+  maxHeight: number,
+  customW = 8.5,
+  customH = 11.0
+): { x: number; y: number; width: number; height: number } | null {
+  if (precrop === "Entire") return null;
+
+  let wInches = 8.5;
+  let hInches = 11.0;
+
+  switch (precrop) {
+    case "Letter":
+      wInches = 8.5;
+      hInches = 11.0;
+      break;
+    case "A4":
+      wInches = 8.27;
+      hInches = 11.69;
+      break;
+    case "Folio":
+      wInches = 8.5;
+      hInches = 13.0;
+      break;
+    case "Legal":
+      wInches = 8.5;
+      hInches = 14.0;
+      break;
+    case "HalfLetter":
+      wInches = 5.5;
+      hInches = 8.5;
+      break;
+    case "4R":
+      wInches = 4.0;
+      hInches = 6.0;
+      break;
+    case "Custom":
+      wInches = customW;
+      hInches = customH;
+      break;
+  }
+
+  const targetW = Math.min(maxWidth, Math.round(wInches * dpi));
+  const targetH = Math.min(maxHeight, Math.round(hInches * dpi));
+
+  return {
+    x: 0,
+    y: 0,
+    width: targetW,
+    height: targetH,
+  };
+}
