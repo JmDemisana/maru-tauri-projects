@@ -36,7 +36,6 @@ import { GlidingHoverGroup } from "./components/GlidingHoverGroup";
 import { AppletDetailModal } from "./components/AppletDetailModal";
 import { StudioAppletShell } from "./components/StudioAppletShell";
 import { MonikaSpriteVisualizer } from "./components/MonikaSpriteVisualizer";
-import { TitleBar } from "./components/TitleBar";
 import "./MonikaPianoMaker.css";
 
 type AppTab = "piano" | "library" | "dialogue" | "expressions";
@@ -1971,15 +1970,33 @@ export default function MonikaPianoMaker() {
 
   const hasUnsavedChanges = () => buildSongJson(songName, phrases) !== baselineJsonRef.current;
 
-  const handleRequestClose = async () => {
-    const hasWorkingData = phrases.length > 1 || phrases.some((p) => p.notes.length > 0) || hasUnsavedChanges();
-    if (hasWorkingData) {
-      setPendingProjectSwitch({ kind: "close" });
-    } else {
-      const appWindow = getCurrentWindow();
-      await appWindow.close();
-    }
-  };
+  const allowCloseRef = useRef(false);
+  const hasWorkingDataRef = useRef(false);
+  hasWorkingDataRef.current =
+    phrases.length > 1 || phrases.some((p) => p.notes.length > 0) || hasUnsavedChanges();
+
+  // The native title bar closes the window directly, so intercept the close
+  // request to keep the "unsaved changes" confirmation prompt working.
+  useEffect(() => {
+    const appWindow = getCurrentWindow();
+    let unlisten: (() => void) | undefined;
+    let disposed = false;
+    appWindow
+      .onCloseRequested((event) => {
+        if (allowCloseRef.current || !hasWorkingDataRef.current) return;
+        event.preventDefault();
+        setPendingProjectSwitch({ kind: "close" });
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      });
+    return () => {
+      disposed = true;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
 
   const runProjectSwitch = async () => {
     if (!pendingProjectSwitch) return;
@@ -1989,6 +2006,7 @@ export default function MonikaPianoMaker() {
     } else if (pendingProjectSwitch.kind === "file") {
       processUploadedFile(pendingProjectSwitch.file);
     } else if (pendingProjectSwitch.kind === "close") {
+      allowCloseRef.current = true;
       const appWindow = getCurrentWindow();
       await appWindow.close();
     } else {
@@ -2064,7 +2082,6 @@ export default function MonikaPianoMaker() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", background: "#0b0d14" }}>
-      <TitleBar title="Monika Piano Maker" iconSrc="/app-icon.png" onClose={handleRequestClose} />
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
       <>
       {/* TAB 1: Piano & DAW Workstation (Full Screen, Non-Scrollable Layout) */}
@@ -3342,14 +3359,18 @@ export default function MonikaPianoMaker() {
         <AppletDetailModal
           isOpen={true}
           onClose={() => setPendingProjectSwitch(null)}
-          title="⚠️ Replace Active Studio Project?"
-          subtitle={`You are currently working on "${songName}".`}
+          title={pendingProjectSwitch.kind === "close" ? "⚠️ Unsaved Changes" : "⚠️ Replace Active Studio Project?"}
+          subtitle={pendingProjectSwitch.kind === "close" ? `You have unsaved work on "${songName}".` : `You are currently working on "${songName}".`}
           maxWidth="540px"
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "0.85rem 1rem", borderRadius: "8px" }}>
               <p style={{ margin: 0, fontSize: "0.84rem", color: "#fca5a5", lineHeight: 1.5 }}>
-                Opening <strong>{pendingProjectSwitch.kind === "new" ? "a Blank Project" : pendingProjectSwitch.kind === "file" ? pendingProjectSwitch.file.name : pendingProjectSwitch.song.name}</strong> will overwrite your active Piano Studio workspace.
+                {pendingProjectSwitch.kind === "close" ? (
+                  <>Closing now will discard your unsaved work on <strong>{songName || "this project"}</strong>.</>
+                ) : (
+                  <>Opening <strong>{pendingProjectSwitch.kind === "new" ? "a Blank Project" : pendingProjectSwitch.kind === "file" ? pendingProjectSwitch.file.name : pendingProjectSwitch.song.name}</strong> will overwrite your active Piano Studio workspace.</>
+                )}
               </p>
               <p style={{ margin: "0.55rem 0 0", fontSize: "0.78rem", color: "#cbd5e1", lineHeight: 1.4 }}>
                 To make sure you don't lose your work, save your current project as a <strong>Piano Studio Standard JSON</strong> (<code>.json</code>) so you can reopen and continue editing anytime!
@@ -3372,7 +3393,7 @@ export default function MonikaPianoMaker() {
                   }
                 }}
               >
-                💾 Save Project &amp; Continue
+                💾 Save Project &amp; {pendingProjectSwitch.kind === "close" ? "Close" : "Continue"}
               </button>
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
@@ -3380,7 +3401,7 @@ export default function MonikaPianoMaker() {
                   style={{ flex: 1, justifyContent: "center", padding: "0.5rem", fontSize: "0.8rem", background: "#ef4444", color: "#fff", fontWeight: 600 }}
                   onClick={runProjectSwitch}
                 >
-                  ⚠️ Discard &amp; Continue
+                  ⚠️ {pendingProjectSwitch.kind === "close" ? "Discard & Close" : "Discard & Continue"}
                 </button>
                 <button
                   className="mpm-action-btn"

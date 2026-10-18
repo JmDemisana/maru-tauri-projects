@@ -1,68 +1,23 @@
 use tauri::Manager;
 
+/// Native decorations stay on, snap and resize are disabled by the window flags
+/// (resizable: false, maximizable: false). This guard only stops the one loophole
+/// left on Windows: dragging a maximized caption restores the window. If the OS
+/// ever un-zooms the window, we snap it right back to maximized.
 #[cfg(target_os = "windows")]
-fn fit_window_to_monitor_work_area(window: &tauri::WebviewWindow, x: i32, y: i32) {
-    use tauri::{PhysicalPosition, PhysicalSize};
-    use windows_sys::Win32::Foundation::{POINT, RECT};
-    use windows_sys::Win32::Graphics::Gdi::{
-        GetMonitorInfoW, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST,
-    };
+fn keep_maximized(window: &tauri::Window) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::IsZoomed;
 
-    unsafe {
-        let pt = POINT { x, y };
-        let hmon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
-        if !hmon.is_null() {
-            let mut mi = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                rcMonitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                rcWork: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                dwFlags: 0,
-            };
-            if GetMonitorInfoW(hmon, &mut mi as *mut _ as *mut _) != 0 {
-                let w = (mi.rcWork.right - mi.rcWork.left) as u32;
-                let h = (mi.rcWork.bottom - mi.rcWork.top) as u32;
-                let wx = mi.rcWork.left;
-                let wy = mi.rcWork.top;
-                let _ = window.set_position(PhysicalPosition::new(wx, wy));
-                let _ = window.set_size(PhysicalSize::new(w, h));
-            }
+    if window.is_minimized().unwrap_or(false) {
+        return;
+    }
+
+    if let Ok(hwnd) = window.hwnd() {
+        let zoomed = unsafe { IsZoomed(hwnd.0 as isize as _) } != 0;
+        if !zoomed {
+            let _ = window.maximize();
         }
     }
-}
-
-#[tauri::command]
-async fn move_to_next_monitor(window: tauri::WebviewWindow) -> Result<(), String> {
-    let monitors = window.available_monitors().map_err(|e| e.to_string())?;
-    if monitors.len() <= 1 {
-        return Ok(());
-    }
-
-    let current = window.current_monitor().map_err(|e| e.to_string())?;
-
-    let mut next_idx = 0;
-    if let Some(curr_mon) = current {
-        for (i, m) in monitors.iter().enumerate() {
-            if m.name() == curr_mon.name() {
-                next_idx = (i + 1) % monitors.len();
-                break;
-            }
-        }
-    }
-
-    let target_mon = &monitors[next_idx];
-    let mon_pos = target_mon.position();
-
-    #[cfg(target_os = "windows")]
-    fit_window_to_monitor_work_area(&window, mon_pos.x + 10, mon_pos.y + 10);
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let mon_size = target_mon.size();
-        let _ = window.set_position(tauri::PhysicalPosition::new(mon_pos.x, mon_pos.y));
-        let _ = window.set_size(tauri::PhysicalSize::new(mon_size.width, mon_size.height));
-    }
-
-    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -71,16 +26,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![move_to_next_monitor])
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_)) {
+                #[cfg(target_os = "windows")]
+                keep_maximized(window);
+            }
+        })
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_resizable(false);
-                let _ = window.set_maximizable(false);
-
-                // Fit to primary work area (respects taskbar regardless of aspect ratio or taskbar position)
-                #[cfg(target_os = "windows")]
-                fit_window_to_monitor_work_area(&window, 0, 0);
-
                 let _ = window.show();
                 let _ = window.set_focus();
             }

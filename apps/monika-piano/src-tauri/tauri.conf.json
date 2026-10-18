@@ -16,12 +16,11 @@
         "title": "Monika Piano Maker",
         "width": 1440,
         "height": 900,
-        "maximized": false,
+        "maximized": true,
         "fullscreen": false,
         "resizable": false,
         "maximizable": false,
-        "decorations": false,
-        "shadow": false,
+        "decorations": true,
         "visible": false
       }
     ],
